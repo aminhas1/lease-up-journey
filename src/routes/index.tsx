@@ -4,6 +4,11 @@ import { STEPS, type Lane, type Step } from "@/data/steps";
 import { CHAR } from "@/components/Characters";
 
 export const Route = createFileRoute("/")({
+  // ?step=4 opens the map on that step (Batch Clock links here per file).
+  validateSearch: (search: Record<string, unknown>): { step?: number } => {
+    const n = Number(search["step"]);
+    return Number.isInteger(n) && n >= 1 && n <= 8 ? { step: n } : {};
+  },
   head: () => ({
     meta: [
       { title: "Keys Quest: NYC Lease-Up Journey" },
@@ -335,6 +340,11 @@ function StackedTrack({ sel, select }: { sel: number; select: (n: number) => voi
 function Index() {
   const [sel, setSel] = useState(1);
   const [playing, setPlaying] = useState(false);
+  const { step: wanted } = Route.useSearch();
+  // Applied after mount so the prerendered HTML (always step 1) hydrates cleanly, then walks to the step.
+  useEffect(() => {
+    if (wanted) setSel(wanted);
+  }, [wanted]);
   const step = STEPS[sel - 1]!;
   const select = (n: number) => {
     setSel(n);

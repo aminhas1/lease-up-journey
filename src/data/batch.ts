@@ -27,6 +27,16 @@ export const BATCH = {
 };
 
 /** Handbook clocks, from the HPD/HDC Marketing Handbook, rev. April 2026. Strings are used verbatim. */
+/** Where each stage sits on the journey map's eight steps (src/data/steps.ts). An appeal branches off step 6. */
+export const MAP_STEP: Record<Stage, { n: number; note: string }> = {
+  first: { n: 4, note: "document request" },
+  second: { n: 5, note: "the scramble" },
+  review: { n: 6, note: "agent review" },
+  appeal: { n: 6, note: "appeal, off agent review" },
+  offer: { n: 7, note: "cleared by the city, unit offered" },
+  closed: { n: 8, note: "lease and move-in" }, // the one closed file in the sample signed a lease
+};
+
 export const RULES: Record<
   Stage,
   { label: string; days: number | null; cite: string; text: string }

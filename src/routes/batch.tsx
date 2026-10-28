@@ -1,6 +1,6 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { APPLICANTS, BATCH, RULES, TODAY, type Applicant } from "@/data/batch";
+import { APPLICANTS, BATCH, MAP_STEP, RULES, TODAY, type Applicant } from "@/data/batch";
 import { Agent, City, Family } from "@/components/Characters";
 import {
   actionFor,
@@ -61,6 +61,30 @@ function Cite({ c, className = "" }: { c: string; className?: string }) {
     >
       {c}
     </span>
+  );
+}
+
+/** Where the file sits on the journey map: eight dots, filled up to the current step, linking to that step. */
+function StepMarker({ stage, className = "" }: { stage: Applicant["stage"]; className?: string }) {
+  const { n, note } = MAP_STEP[stage];
+  return (
+    <Link
+      to="/"
+      search={{ step: n }}
+      onClick={(e) => e.stopPropagation()}
+      title={`Step ${n} of 8 on the map: ${note}`}
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap text-[11px] text-muted-foreground underline-offset-2 hover:underline ${className}`}
+    >
+      <span className="flex gap-[3px]" aria-hidden>
+        {Array.from({ length: 8 }, (_, i) => (
+          <span
+            key={i}
+            className={`h-1.5 w-1.5 rounded-full ${i + 1 === n ? "bg-primary" : i + 1 < n ? "bg-primary/35" : "bg-border/20"}`}
+          />
+        ))}
+      </span>
+      step {n} of 8
+    </Link>
   );
 }
 
@@ -282,6 +306,7 @@ function Batch() {
                         <span className="text-xs text-muted-foreground">
                           {docsStage ? `${d.received} of ${a.docs.length} in` : docsWord}
                         </span>
+                        <StepMarker stage={a.stage} />
                       </div>
                     </div>
                   </div>
@@ -291,6 +316,7 @@ function Batch() {
                   <div className="hidden text-sm md:block">
                     {rule.label}
                     <div className="font-mono text-[11px] text-muted-foreground">{rule.cite}</div>
+                    <StepMarker stage={a.stage} className="mt-1" />
                   </div>
 
                   <div className="hidden text-sm md:block">
