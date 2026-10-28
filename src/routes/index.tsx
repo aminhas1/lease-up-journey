@@ -2,6 +2,7 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { STEPS, type Lane, type Step } from "@/data/steps";
 import { CHAR } from "@/components/Characters";
+import { GITHUB_URL } from "@/data/links";
 
 export const Route = createFileRoute("/")({
   // ?step=4 opens the map on that step (Batch Clock links here per file).
@@ -565,7 +566,14 @@ function Index() {
         <footer className="mt-8 text-xs text-muted-foreground">
           Sources: HPD/HDC Marketing Handbook (rev. Apr 2026) · HPD, Ready, Set, Apply · HPD Local
           Law 216 report · NYU Furman Center · NYHC · harmonyworks.com. "Harmony says" lines are the
-          company's own claims, not verified behavior.
+          company's own claims, not verified behavior.{" "}
+          <a href={GITHUB_URL} className="underline underline-offset-2">
+            Source on GitHub
+          </a>{" "}
+          ·{" "}
+          <Link to="/prd" className="underline underline-offset-2">
+            Read the PRD
+          </Link>
         </footer>
       </div>
     </main>

@@ -19,6 +19,12 @@ export default defineConfig({
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
     server: { entry: "server" },
     router: { basepath: BASE_PATH },
-    prerender: { enabled: true, crawlLinks: true, autoSubfolderIndex: true },
+    prerender: {
+      enabled: true,
+      crawlLinks: true,
+      autoSubfolderIndex: true,
+      // ?step=N links on the batch page all render the map's page; render it once.
+      filter: (page: { path: string }) => !page.path.includes("?"),
+    },
   },
 });

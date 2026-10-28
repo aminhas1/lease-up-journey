@@ -4,6 +4,7 @@ An interactive research map of New York City's affordable-housing lottery, from 
 
 - `/` the journey map: eight steps, three parties, scaled by time
 - `/batch` Batch Clock: one invented batch of twelve applicants, each on a handbook clock
+- `/prd` the learning PRD behind Batch Clock, rendered from `docs/PRD-batch-clock.md`
 
 The whole app is served under `/harmony-review` (see `vite.config.ts`).
 
@@ -27,5 +28,6 @@ Then open http://127.0.0.1:5177/harmony-review/.
 - `src/lib/clock.ts` weekday math, derived deadlines, and the one action the handbook allows per state.
 - `src/routes/index.tsx` and `src/routes/batch.tsx` the two pages.
 - `src/components/Characters.tsx` the family, agent and city.
+- `docs/PRD-batch-clock.md` why Batch Clock exists and what I'd ask a marketing agent; `docs/BUILD-batch-clock.md` the build spec and what changed in the build.
 
 Names, files and the building are invented. Sources are linked on the pages.

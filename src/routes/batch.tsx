@@ -2,6 +2,7 @@ import { Link, createFileRoute } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { APPLICANTS, BATCH, MAP_STEP, RULES, TODAY, type Applicant } from "@/data/batch";
 import { Agent, City, Family } from "@/components/Characters";
+import { GITHUB_URL } from "@/data/links";
 import {
   actionFor,
   apply,
@@ -143,12 +144,12 @@ function Batch() {
   return (
     <main className="min-h-screen px-4 pb-16">
       <div className="mx-auto max-w-6xl">
-        <nav className="pt-6 text-sm">
-          <Link
-            to="/"
-            className="font-display font-semibold text-muted-foreground underline-offset-4 hover:underline"
-          >
+        <nav className="flex flex-wrap gap-x-5 gap-y-1 pt-6 font-display text-sm font-semibold text-muted-foreground">
+          <Link to="/" className="underline-offset-4 hover:underline">
             ← The journey map
+          </Link>
+          <Link to="/prd" className="underline-offset-4 hover:underline">
+            Why this exists: the PRD →
           </Link>
         </nav>
 
@@ -452,7 +453,14 @@ function Batch() {
             NYHC case study, 2026
           </a>
           ). Names, files and the building are invented. Actions change nothing outside this page;
-          reload to reset.
+          reload to reset.{" "}
+          <a href={GITHUB_URL} className="underline underline-offset-2">
+            Source on GitHub
+          </a>{" "}
+          ·{" "}
+          <Link to="/prd" className="underline underline-offset-2">
+            Read the PRD
+          </Link>
         </footer>
       </div>
 

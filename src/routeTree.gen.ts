@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BatchRouteImport } from './routes/batch'
+import { Route as PrdRouteImport } from './routes/prd'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -22,31 +23,40 @@ const BatchRoute = BatchRouteImport.update({
   path: '/batch',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrdRoute = PrdRouteImport.update({
+  id: '/prd',
+  path: '/prd',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/batch': typeof BatchRoute
+  '/prd': typeof PrdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/batch': typeof BatchRoute
+  '/prd': typeof PrdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/batch': typeof BatchRoute
+  '/prd': typeof PrdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/batch'
+  fullPaths: '/' | '/batch' | '/prd'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/batch'
-  id: '__root__' | '/' | '/batch'
+  to: '/' | '/batch' | '/prd'
+  id: '__root__' | '/' | '/batch' | '/prd'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BatchRoute: typeof BatchRoute
+  PrdRoute: typeof PrdRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -65,12 +75,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BatchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/prd': {
+      id: '/prd'
+      path: '/prd'
+      fullPath: '/prd'
+      preLoaderRoute: typeof PrdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BatchRoute: BatchRoute,
+  PrdRoute: PrdRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
