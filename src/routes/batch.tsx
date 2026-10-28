@@ -26,7 +26,8 @@ export const Route = createFileRoute("/batch")({
       { property: "og:title", content: "Batch Clock" },
       {
         property: "og:description",
-        content: "One marketing agent, one batch, every applicant on their own clock.",
+        content:
+          "A marketing agent's queue for one building, sorted by whichever handbook deadline runs out first.",
       },
     ],
   }),
@@ -137,8 +138,8 @@ function Batch() {
               <h1 className="text-3xl font-bold leading-tight md:text-4xl">{BATCH.title}</h1>
             </div>
             <p className="mt-3 max-w-2xl text-muted-foreground">
-              One marketing agent, one batch, every applicant on their own clock. Sorted by what
-              expires next. Each deadline names the handbook rule that set it.
+              A marketing agent's queue for one building. Each applicant has a deadline set by the
+              handbook, and the list is sorted by whichever deadline runs out first.
             </p>
           </div>
           <div className="text-sm text-muted-foreground sm:text-right">
@@ -231,7 +232,9 @@ function Batch() {
             const action = actionFor(a, d);
             const clockPill = (
               <span
-                className={`inline-block whitespace-nowrap rounded-full border px-2.5 py-0.5 font-display text-xs font-bold ${CLOCK[d.status]}`}
+                className={`inline-block whitespace-nowrap rounded-full border px-2.5 py-0.5 font-display text-xs font-bold ${
+                  a.stage === "review" ? "border-agt/30 bg-agt-soft text-agt" : CLOCK[d.status]
+                }`}
               >
                 {clockText(a, d)}
               </span>

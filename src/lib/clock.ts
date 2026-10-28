@@ -58,6 +58,7 @@ export function derive(a: Applicant): Derived {
 
 export function clockText(a: Applicant, d: Derived): string {
   if (a.stage === "closed") return "closed";
+  if (a.stage === "review") return "in review · no deadline";
   if (d.due == null || d.left == null) return "no clock";
   if (d.left < 0) return `${-d.left} weekday${d.left === -1 ? "" : "s"} overdue`;
   if (d.left === 0) return "expires today";
