@@ -200,10 +200,10 @@ function Batch() {
 
         {/* The batch */}
         <div className="mt-3 overflow-hidden rounded-xl border border-border bg-card shadow-sm">
-          <div className="grid grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 bg-secondary px-4 py-2 font-display text-[11px] font-bold uppercase tracking-wider text-muted-foreground md:grid-cols-[20px_1.4fr_1fr_1.1fr_1.2fr]">
+          <div className="grid grid-cols-[20px_minmax(0,1fr)] items-center gap-x-3 bg-secondary px-4 py-2 font-display text-[11px] font-bold uppercase tracking-wider text-muted-foreground md:grid-cols-[20px_1.4fr_1fr_1.1fr_1.2fr]">
             <span />
             <span>Applicant</span>
-            <span>Clock</span>
+            <span className="hidden md:block">Clock</span>
             <span className="hidden md:block">Stage</span>
             <span className="hidden md:block">Documents</span>
           </div>
@@ -229,6 +229,13 @@ function Batch() {
                     : "—";
             const toggle = () => setOpenLog(isOpen ? null : a.log);
             const action = actionFor(a, d);
+            const clockPill = (
+              <span
+                className={`inline-block whitespace-nowrap rounded-full border px-2.5 py-0.5 font-display text-xs font-bold ${CLOCK[d.status]}`}
+              >
+                {clockText(a, d)}
+              </span>
+            );
 
             return (
               <Fragment key={a.log}>
@@ -243,7 +250,7 @@ function Batch() {
                       toggle();
                     }
                   }}
-                  className={`grid cursor-pointer grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-x-3 border-t border-border/40 px-4 py-3 transition md:grid-cols-[20px_1.4fr_1fr_1.1fr_1.2fr] ${
+                  className={`grid cursor-pointer grid-cols-[20px_minmax(0,1fr)] items-center gap-x-3 border-t border-border/40 px-4 py-3 transition md:grid-cols-[20px_1.4fr_1fr_1.1fr_1.2fr] ${
                     isOpen ? "bg-secondary/60" : "hover:bg-secondary/40"
                   }`}
                 >
@@ -267,25 +274,16 @@ function Batch() {
                       <div className="text-xs text-muted-foreground">
                         Log <span className="font-mono">{a.log}</span> · household of {a.household}
                       </div>
-                      {docsStage ? (
-                        <div className="mt-0.5 text-xs text-muted-foreground md:hidden">
-                          {d.received} of {a.docs.length} in
-                        </div>
-                      ) : (
-                        <div className="mt-0.5 text-xs text-muted-foreground md:hidden">
-                          {docsWord}
-                        </div>
-                      )}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 md:hidden">
+                        {clockPill}
+                        <span className="text-xs text-muted-foreground">
+                          {docsStage ? `${d.received} of ${a.docs.length} in` : docsWord}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  <div>
-                    <span
-                      className={`inline-block whitespace-nowrap rounded-full border px-2.5 py-0.5 font-display text-xs font-bold ${CLOCK[d.status]}`}
-                    >
-                      {clockText(a, d)}
-                    </span>
-                  </div>
+                  <div className="hidden md:block">{clockPill}</div>
 
                   <div className="hidden text-sm md:block">
                     {rule.label}
