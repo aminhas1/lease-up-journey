@@ -113,5 +113,5 @@ Deviations from the spec above, each a correction rather than a feature:
 - The "expire within 3 weekdays" tile counts what its filter shows (today and overdue included).
 - Review rows read "in review · no deadline" in the agent's color instead of "no clock".
 - The building is "Sample Avenue Apartments" so it cannot be mistaken for a real one.
-- Each row shows where the file sits on the journey map ("step 7 of 8"), linking to that step. See the PRD's "What building it changed".
+- Each row shows where the file sits on the journey map ("step 7 of 8"), linking to that step.
 - The description under the title is plainer than the one above.

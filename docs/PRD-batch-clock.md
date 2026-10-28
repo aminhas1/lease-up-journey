@@ -31,11 +31,7 @@ One batch, sorted by soonest expiry. Each file shows its clock, its stage, the h
 
 ## Success criteria for the exercise
 
-Done when I can describe a marketing agent's morning without opening the handbook, and when someone who does the job can tell me the three biggest things I got wrong.
-
-## What building it changed
-
-Three things in my own sample data were wrong by the handbook's logic, and the build caught them. A family that sent three of five documents was being rejected for "non-response"; they responded. A family rejected on Oct 21 was marked closed when the handbook gives them ten business days to appeal. And the list treated a unit offer, which comes after agent approval and city clearance, the same as a first document request, because both are just clocks. The first two are fixed. The third is the reason for the step marker, and for the first question below.
+Done when this shows that I'm learning the job, not that I know it, and when someone who does the job can tell me the three biggest things I got wrong.
 
 ## What I haven't done
 
