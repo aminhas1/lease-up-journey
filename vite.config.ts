@@ -6,10 +6,19 @@
 // You can pass additional config via defineConfig({ vite: { ... }, etc... }) if needed.
 import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 
+// The app is published as static files under a single path on abeerminhas.com
+// (see README). BASE_PATH is that path; dev and build both use it so links and
+// assets resolve the same way everywhere.
+export const BASE_PATH = "/harmony-review";
+
 export default defineConfig({
+  // Static output only: no server runtime, no Cloudflare worker.
+  nitro: false,
+  vite: { base: `${BASE_PATH}/` },
   tanstackStart: {
     // Redirect TanStack Start's bundled server entry to src/server.ts (our SSR error wrapper).
-    // nitro/vite builds from this
     server: { entry: "server" },
+    router: { basepath: BASE_PATH },
+    prerender: { enabled: true, crawlLinks: true, autoSubfolderIndex: true },
   },
 });

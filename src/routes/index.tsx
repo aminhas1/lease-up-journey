@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { STEPS, type Lane, type Step } from "@/data/steps";
 import { CHAR } from "@/components/Characters";
@@ -532,6 +532,25 @@ function Index() {
             </div>
           </div>
         </section>
+
+        <Link
+          to="/batch"
+          className="mt-6 flex flex-wrap items-center gap-4 rounded-xl border border-dashed border-border bg-card p-4 shadow-sm transition hover:-translate-y-0.5"
+        >
+          <CHAR.agt className="h-14 w-[70px] shrink-0" />
+          <div className="min-w-0 flex-1">
+            <div className="font-display text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              Next: Batch Clock
+            </div>
+            <div className="mt-1 font-display text-lg font-bold">
+              One agent's batch, every applicant on a handbook clock →
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              A small prototype built to learn the job at steps 4 to 6. Twelve invented files, each
+              deadline citing the rule that set it. A learning exercise, not a proposal.
+            </p>
+          </div>
+        </Link>
 
         <footer className="mt-8 text-xs text-muted-foreground">
           Sources: HPD/HDC Marketing Handbook (rev. Apr 2026) · HPD, Ready, Set, Apply · HPD Local

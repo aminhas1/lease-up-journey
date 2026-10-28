@@ -12,6 +12,7 @@ TanStack Start + React + TypeScript + Tailwind v4, exported from Lovable. `npm i
 
 - `src/data/steps.ts` — the eight steps. **This is the research. Do not reword, shorten, or drop any string in it, including citations.** Add fields or new entries only when asked. Every `pain` entry is `[text, citation]` and the citation must survive any restyle.
 - `src/routes/index.tsx` — the page: step track, three character lanes, detail card.
+- `src/routes/batch.tsx` — Batch Clock, the second page (`/batch`): one invented batch of twelve applicants on handbook clocks. Data in `src/data/batch.ts` (rule strings verbatim from the build spec; citations are content), logic in `src/lib/clock.ts`, acceptance tests in `src/test/batch-clock.test.ts`. Reuses the map's tokens, fonts and characters.
 - `src/components/Characters.tsx` — SVG characters for family / agent / city.
 - `src/styles.css` — tokens. `--fam`, `--agt`, `--city`, `--harm` and their `-soft` variants are the only semantic colors.
 
@@ -25,6 +26,10 @@ A family applies on Housing Connect (NYC's lottery site) by self-reporting incom
 - NYHC case study, Feb 2026, one Bronx building, 180 units: ~70,000 applications, 3,607 sent document requests, 1,423 never responded, 1,433 ineligible, 135 moved in, 27 months to lease. Housing Connect sends agents no status notifications. https://thenyhc.org/wp-content/uploads/2026/03/NYHC-Housing-Connect-Case-Study-2.27.26.pdf
 - HPD to City Council, Apr 2025: a batch takes 40 to 45 days through the agent stage.
 
+## Publishing
+
+The whole app lives under `/harmony-review` (`BASE_PATH` in `vite.config.ts`, mirrored as `basepath` in `src/router.tsx`). `npm run build` prerenders both routes to static HTML with no server runtime. `npm run publish:portfolio` builds and copies `dist/client/` to `../portfolio/public/harmony-review/`, the Astro portfolio that is deployed as a static site on Replit; publishing the portfolio puts it live at abeerminhas.com/harmony-review, unlisted. Deleting that folder and republishing takes it down.
+
 ## Layout notes
 
 - The desktop track (`WideTrack` in `index.tsx`, 920px and up) is one CSS grid: a column per step sized `minmax(100px, <w>fr)`, row 1 the loop arrow, row 2 the step buttons, rows 3 to 5 the lanes. The Harmony band and the loop arrow are grid items, so they always line up with the buttons. Walker positions are measured from the real button rectangles (ResizeObserver), not computed from the weights.
@@ -33,7 +38,7 @@ A family applies on Housing Connect (NYC's lottery site) by self-reporting incom
 
 ## Done (Oct 28, 2026)
 
-Restored the step 5 to step 4 loop arrow, added the Furman and NYHC figures to step 5, fixed the Harmony band alignment, let step titles wrap, and added the stacked phone layout.
+Restored the step 5 to step 4 loop arrow, added the Furman and NYHC figures to step 5, fixed the Harmony band alignment, let step titles wrap, and added the stacked phone layout. Built Batch Clock at `/batch` with two sample-data fixes (an applicant with partial documents is rejected as incomplete, not non-response; a rejected applicant sits in the appeal window rather than closed) and a Move to review action for a first request with everything in. Removed the Lovable telemetry and boilerplate; set the base path and static prerender.
 
 ## Style rules
 

@@ -8,6 +8,7 @@
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
+    "publish:portfolio": "npm run build && rm -rf ../portfolio/public/harmony-review && cp -R dist/client ../portfolio/public/harmony-review && echo 'Copied to ../portfolio/public/harmony-review. Publish the portfolio to put it live.'",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
