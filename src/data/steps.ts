@@ -1,5 +1,5 @@
 export type Lane = "fam" | "agt" | "city";
-export type Step = { n: number; t: string; time: string; w: number; lanes: Lane[]; harm?: boolean; what: string; docs: string[]; timeNote: string; pain: [string, string][]; harmony: string | null; cite: string };
+export type Step = { n: number; t: string; time: string; w: number; lanes: Lane[]; harm?: boolean; what: string; docs: string[]; timeNote: string; pain: [string, string][]; harmony: string | null; cite: string; numbers?: [label: string, value: string, source: string, url: string][] };
 export const STEPS: Step[] = [
  {n:1,t:'Apply',time:'minutes',w:1,lanes:['fam','city'],
   what:'The family builds one profile on Housing Connect: who lives with them, everyone\'s income typed in from memory or last year\'s taxes, any set-aside they qualify for. No documents are uploaded. Then they browse listings and click Apply on any building whose household size and income range fit. One profile, many buildings.',
@@ -35,6 +35,15 @@ export const STEPS: Step[] = [
   timeNote:'Ten weekdays, then at least five more for anything missing. Rejection for non-response only after both.',
   pain:[['The second-request rule exists because partial submissions are routine.','Handbook §4-5.D.2'],['The city guide tells families to bring IDs, Social Security cards, birth certificates, pay stubs, tax returns and the current lease, with every adult present.','Ready, Set, Apply'],['Some situations have no third-party document and fall back to a self-certification: non-court-ordered child support, recurring gifts, an employer who will not confirm a termination.','Handbook §5-4.G, §5-3.A']],
   harmony:'"Apply by text. Any language. Any time. Snap a photo of a pay stub. Harmony reads it." 24/7 by text, phone or web; a real person can step in; it "keeps your file on track, so a missing document does not quietly hold up your application."',
+  numbers:[
+   ['Contacted applicants who never engage','~50%','NYU Furman Center, Apr 2026','https://www.furmancenter.org/wp-content/uploads/2026/04/The-House-Doesnt-Always-Win_508.pdf'],
+   ['Engage, then are rejected','~27%','NYU Furman Center, Apr 2026','https://www.furmancenter.org/wp-content/uploads/2026/04/The-House-Doesnt-Always-Win_508.pdf'],
+   ['Approved','~15%','NYU Furman Center, Apr 2026','https://www.furmancenter.org/wp-content/uploads/2026/04/The-House-Doesnt-Always-Win_508.pdf'],
+   ['Median days in the document phase','29','NYU Furman Center, Apr 2026','https://www.furmancenter.org/wp-content/uploads/2026/04/The-House-Doesnt-Always-Win_508.pdf'],
+   ['Document requests sent, one Bronx building of 180 units','3,607','NYHC case study, Feb 2026','https://thenyhc.org/wp-content/uploads/2026/03/NYHC-Housing-Connect-Case-Study-2.27.26.pdf'],
+   ['Never responded','1,423','NYHC case study, Feb 2026','https://thenyhc.org/wp-content/uploads/2026/03/NYHC-Housing-Connect-Case-Study-2.27.26.pdf'],
+   ['Found ineligible','1,433','NYHC case study, Feb 2026','https://thenyhc.org/wp-content/uploads/2026/03/NYHC-Housing-Connect-Case-Study-2.27.26.pdf'],
+   ['Moved in','135','NYHC case study, Feb 2026','https://thenyhc.org/wp-content/uploads/2026/03/NYHC-Housing-Connect-Case-Study-2.27.26.pdf']],
   cite:'Handbook §4-5.D to E, §5-4; harmonyworks.com'},
  {n:6,t:'Agent review',time:'days per file',w:2,lanes:['agt','fam'],harm:true,
   what:'The agent checks three things. Is this a household under the handbook\'s definition? Does the income, calculated the handbook\'s way, fall inside the unit\'s band? Is any set-aside proven? Then approve, ask for more, or reject. A rejected family has ten business days to appeal to a supervisor who was not the first reviewer.',

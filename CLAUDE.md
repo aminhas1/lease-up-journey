@@ -6,7 +6,7 @@ Interactive research map of the NYC affordable-housing lottery, from application
 
 ## Stack
 
-TanStack Start + React + TypeScript + Tailwind v4, exported from Lovable. `bun install`, `bun run dev --host 127.0.0.1 --port 5177` (IPv4 host flag needed in some sandboxes). Lovable config lives in `vite.config.ts`; do not add plugins there.
+TanStack Start + React + TypeScript + Tailwind v4, exported from Lovable. `npm install`, `npm run dev -- --host 127.0.0.1 --port 5177` (bun is not installed on this machine; the IPv4 host flag is needed in some sandboxes). `.claude/launch.json` has a `dev` entry for the app's browser pane. Lovable config lives in `vite.config.ts`; do not add plugins there.
 
 ## Files that matter
 
@@ -25,13 +25,15 @@ A family applies on Housing Connect (NYC's lottery site) by self-reporting incom
 - NYHC case study, Feb 2026, one Bronx building, 180 units: ~70,000 applications, 3,607 sent document requests, 1,423 never responded, 1,433 ineligible, 135 moved in, 27 months to lease. Housing Connect sends agents no status notifications. https://thenyhc.org/wp-content/uploads/2026/03/NYHC-Housing-Connect-Case-Study-2.27.26.pdf
 - HPD to City Council, Apr 2025: a batch takes 40 to 45 days through the agent stage.
 
-## Open fixes (priority order)
+## Layout notes
 
-1. **Restore the loop.** The original design had an arrow from step 5 back to step 4 labeled "second request, +5 weekdays". It is the most important thing on the map and was lost in the restyle. Draw it above the step track between steps 4 and 5.
-2. **Add numbers to step 5.** Add a "By the numbers" element to the detail card for step 5 using the Furman and NYHC figures above, each with its source. Put the data in `steps.ts` (new optional field, e.g. `numbers: [label, value, source][]`), not hardcoded in the component.
-3. **Harmony band alignment.** On step 1 the dashed yellow Harmony zone stops short of the agent lane on the right edge. It should span steps 4 to 7 across all three lanes at every step.
-4. **Truncated titles.** "Agent works the list" and "Lease and move-in" truncate on desktop. Prefer wrapping to two lines over shortening the text.
-5. **Phone layout.** Under ~700px the step track scrolls sideways and the lanes are cut off. Stack the steps vertically (or show only the selected step with prev/next) and let the characters sit beside the step rather than on a horizontal track.
+- The desktop track (`WideTrack` in `index.tsx`, 920px and up) is one CSS grid: a column per step sized `minmax(100px, <w>fr)`, row 1 the loop arrow, row 2 the step buttons, rows 3 to 5 the lanes. The Harmony band and the loop arrow are grid items, so they always line up with the buttons. Walker positions are measured from the real button rectangles (ResizeObserver), not computed from the weights.
+- Under 920px `StackedTrack` renders instead: steps stacked, the loop as a bracket in a left gutter with its own label row, and the three characters beside the selected step.
+- Step 5 carries a `numbers` field (`[label, value, source, url]`) rendered as a "By the numbers" grid grouped by source.
+
+## Done (Oct 28, 2026)
+
+Restored the step 5 to step 4 loop arrow, added the Furman and NYHC figures to step 5, fixed the Harmony band alignment, let step titles wrap, and added the stacked phone layout.
 
 ## Style rules
 
