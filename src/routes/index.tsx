@@ -563,6 +563,26 @@ function Index() {
           </div>
         </Link>
 
+        <Link
+          to="/guide"
+          className="mt-4 flex flex-wrap items-center gap-4 rounded-xl border border-dashed border-border bg-card p-4 shadow-sm transition hover:-translate-y-0.5"
+        >
+          <CHAR.fam className="h-14 w-[70px] shrink-0" />
+          <div className="min-w-0 flex-1">
+            <div className="font-display text-xs font-bold uppercase tracking-widest text-muted-foreground">
+              Pilot prototype
+            </div>
+            <div className="mt-1 font-display text-lg font-bold">
+              An AI guide for the document request →
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              A scripted conversation at steps 4 and 5, from the applicant's side: her own list,
+              what counts, a receipt for each upload, and help when she is stuck. An invented
+              household.
+            </p>
+          </div>
+        </Link>
+
         <footer className="mt-8 text-xs text-muted-foreground">
           Sources: HPD/HDC Marketing Handbook (rev. Apr 2026) · HPD, Ready, Set, Apply · HPD Local
           Law 216 report · NYU Furman Center · NYHC · harmonyworks.com. "Harmony says" lines are the

@@ -5,6 +5,7 @@ An interactive research map of New York City's affordable-housing lottery, from 
 - `/` the journey map: eight steps, three parties, scaled by time
 - `/batch` Batch Clock: one invented batch of twelve applicants, each on a handbook clock
 - `/prd` the learning PRD behind Batch Clock, rendered from `docs/PRD-batch-clock.md`
+- `/guide` the pilot prototype: a scripted AI document guide for the applicant, with data in `src/data/guide.ts`
 
 The whole app is served under `/harmony-review` (see `vite.config.ts`).
 

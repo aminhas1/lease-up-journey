@@ -151,6 +151,9 @@ function Batch() {
           <Link to="/prd" className="underline-offset-4 hover:underline">
             Why this exists: the PRD →
           </Link>
+          <Link to="/guide" className="underline-offset-4 hover:underline">
+            Pilot prototype: the applicant's guide →
+          </Link>
         </nav>
 
         <header className="flex flex-wrap items-end justify-between gap-x-6 gap-y-4 pt-4 pb-6">

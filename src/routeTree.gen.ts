@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BatchRouteImport } from './routes/batch'
+import { Route as GuideRouteImport } from './routes/guide'
 import { Route as PrdRouteImport } from './routes/prd'
 
 const IndexRoute = IndexRouteImport.update({
@@ -23,6 +24,11 @@ const BatchRoute = BatchRouteImport.update({
   path: '/batch',
   getParentRoute: () => rootRouteImport,
 } as any)
+const GuideRoute = GuideRouteImport.update({
+  id: '/guide',
+  path: '/guide',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PrdRoute = PrdRouteImport.update({
   id: '/prd',
   path: '/prd',
@@ -32,30 +38,34 @@ const PrdRoute = PrdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/batch': typeof BatchRoute
+  '/guide': typeof GuideRoute
   '/prd': typeof PrdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/batch': typeof BatchRoute
+  '/guide': typeof GuideRoute
   '/prd': typeof PrdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/batch': typeof BatchRoute
+  '/guide': typeof GuideRoute
   '/prd': typeof PrdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/batch' | '/prd'
+  fullPaths: '/' | '/batch' | '/guide' | '/prd'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/batch' | '/prd'
-  id: '__root__' | '/' | '/batch' | '/prd'
+  to: '/' | '/batch' | '/guide' | '/prd'
+  id: '__root__' | '/' | '/batch' | '/guide' | '/prd'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   BatchRoute: typeof BatchRoute
+  GuideRoute: typeof GuideRoute
   PrdRoute: typeof PrdRoute
 }
 
@@ -75,6 +85,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BatchRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/guide': {
+      id: '/guide'
+      path: '/guide'
+      fullPath: '/guide'
+      preLoaderRoute: typeof GuideRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/prd': {
       id: '/prd'
       path: '/prd'
@@ -88,6 +105,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   BatchRoute: BatchRoute,
+  GuideRoute: GuideRoute,
   PrdRoute: PrdRoute,
 }
 export const routeTree = rootRouteImport
