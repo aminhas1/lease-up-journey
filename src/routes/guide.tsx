@@ -15,6 +15,8 @@ import {
   type ListItem,
   type Msg,
   type PagePatch,
+  type Reply,
+  type Step,
 } from "@/data/guide";
 import { GITHUB_URL } from "@/data/links";
 
@@ -57,7 +59,7 @@ const stepById = (id: string) => STEPS.find((s) => s.id === id) ?? STEPS[0]!;
 const itemById = (id: string) => ALL_ITEMS.find((it) => it.id === id) ?? ALL_ITEMS[0]!;
 const whoOf = (id: string) => LIST.find((g) => g.items.some((it) => it.id === id))?.who ?? "";
 const labelOf = (id: string) =>
-  `${itemById(id).name}${whoOf(id) === "Her mother" ? " (her mother)" : ""}`;
+  `${itemById(id).name}${whoOf(id) === GUIDE.other ? ` (${GUIDE.other})` : ""}`;
 const stamp = (time: string) => `Nov 5, ${time.toLowerCase()}`;
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
@@ -91,8 +93,8 @@ function pageAt(turns: Turn[], events: PageEvent[]): PageState {
         page.history.push([e.time, `${labelOf(e.id)} received by the agent`]);
       } else {
         stuck(e.id);
-        line(e.id, `Agent told ${stamp(e.time)}`);
-        page.history.push([e.time, `Agent told: stuck on ${labelOf(e.id)}`]);
+        line(e.id, `Help requested ${stamp(e.time)}`);
+        page.history.push([e.time, `Help requested: ${labelOf(e.id)}`]);
       }
     }
   });
@@ -104,7 +106,7 @@ const receivedCount = (page: PageState) =>
 
 const WAITING = "Waiting";
 const RECEIVED = "Received by the agent";
-const STUCK = "Agent told you are stuck";
+const STUCK = "Help requested";
 
 function rowState(it: ListItem, page: PageState) {
   const got = page.got[it.id] ?? 0;
@@ -143,29 +145,55 @@ function TextBody({ text, onLink }: { text: string; onLink: () => void }) {
   );
 }
 
+/** A text the guide drafted for someone it will not contact. She copies it and sends it herself. */
+function Draft({ m }: { m: Extract<Msg, { kind: "draft" }> }) {
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const id = setTimeout(() => setCopied(false), 1800);
+    return () => clearTimeout(id);
+  }, [copied]);
+  const copy = () => {
+    // The clipboard can be refused; the sketch still shows the confirmation.
+    if ("clipboard" in navigator) navigator.clipboard.writeText(m.body).catch(() => undefined);
+    setCopied(true);
+  };
+  return (
+    <div className="max-w-[88%]">
+      <div className="rounded-2xl rounded-bl-sm border border-border/30 bg-secondary px-3 py-2 text-sm">
+        <div className="font-display text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          {m.title}
+        </div>
+        <p className="mt-1 border-l-2 border-border/40 pl-2">{m.body}</p>
+      </div>
+      <div className="mt-1 flex flex-wrap items-center gap-2">
+        <button
+          onClick={copy}
+          title="On a phone she would press and hold the message to copy it"
+          className="rounded-full border border-border bg-card px-2.5 py-0.5 font-display text-[11px] font-semibold shadow-sm transition active:translate-y-0.5"
+        >
+          {m.copy}
+        </button>
+        {copied && (
+          <span
+            role="status"
+            className="animate-pop-in font-display text-[11px] font-bold text-city"
+          >
+            Copied
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function Message({ m, onLink }: { m: Msg; onLink: () => void }) {
   switch (m.kind) {
     case "bot":
       return (
         <div className="max-w-[88%]">
-          {m.to && (
-            <div className="mb-0.5 font-display text-[11px] font-bold text-muted-foreground">
-              {m.to}
-            </div>
-          )}
           <div className="inline-block rounded-2xl rounded-bl-sm border border-border/30 bg-secondary px-3 py-2 text-sm">
             <TextBody text={m.text} onLink={onLink} />
-          </div>
-        </div>
-      );
-    case "other":
-      return (
-        <div className="max-w-[88%]">
-          <div className="mb-0.5 font-display text-[11px] font-bold text-muted-foreground">
-            {m.name}
-          </div>
-          <div className="inline-block rounded-2xl rounded-bl-sm border border-border/30 bg-fam-soft px-3 py-2 text-sm">
-            {m.text}
           </div>
         </div>
       );
@@ -176,15 +204,64 @@ function Message({ m, onLink }: { m: Msg; onLink: () => void }) {
         </div>
       );
     case "draft":
-      return (
-        <div className="max-w-[88%] rounded-2xl rounded-bl-sm border border-border/30 bg-secondary px-3 py-2 text-sm">
-          <div className="font-display text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
-            {m.title}
-          </div>
-          <p className="mt-1 border-l-2 border-border/40 pl-2">{m.body}</p>
-        </div>
-      );
+      return <Draft m={m} />;
   }
+}
+
+/** The other adult's own thread with the guide, on her own phone. */
+function OtherPhone({
+  thread,
+  onSend,
+}: {
+  thread: NonNullable<Step["other"]>;
+  onSend: (r: Reply) => void;
+}) {
+  const reply = thread.reply;
+  return (
+    <div className="animate-pop-in mx-auto w-full max-w-[320px]">
+      <div className="mb-2 font-display text-xs font-bold uppercase tracking-widest text-muted-foreground">
+        On {GUIDE.other}'s phone
+      </div>
+      <div className="flex flex-col overflow-hidden rounded-[1.75rem] border-2 border-border bg-card shadow-sm">
+        <div className="border-b border-border/40 bg-secondary px-3 py-1.5 text-center leading-tight">
+          <div className="font-display text-xs font-bold">{GUIDE.agent}</div>
+          <div className="text-[10px] text-muted-foreground">Text message · automated guide</div>
+        </div>
+        <div className="space-y-2 bg-background px-3 py-3 text-[13px]">
+          {thread.say.map((m, i) =>
+            m.from === "guide" ? (
+              <div key={i} className="max-w-[88%]">
+                <div className="inline-block rounded-2xl rounded-bl-sm border border-border/30 bg-secondary px-3 py-2">
+                  {m.text}
+                </div>
+              </div>
+            ) : (
+              <div key={i} className="flex justify-end">
+                <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-primary-foreground">
+                  {m.text}
+                </div>
+              </div>
+            ),
+          )}
+        </div>
+        <div className="flex items-end gap-2 border-t border-border/40 bg-card p-2.5">
+          <div
+            className={`min-w-0 flex-1 break-words rounded-2xl border px-3 py-1.5 text-[13px] ${reply ? "border-border bg-card" : "border-border/40 bg-background text-muted-foreground"}`}
+          >
+            {reply?.text ?? "Text message"}
+          </div>
+          <button
+            onClick={() => reply && onSend(reply)}
+            disabled={!reply}
+            className="whitespace-nowrap rounded-full border border-border bg-primary px-3 py-1.5 font-display text-xs font-semibold text-primary-foreground shadow-sm transition active:translate-y-0.5 disabled:opacity-30"
+          >
+            Send
+          </button>
+        </div>
+      </div>
+      {thread.gloss && <p className="mt-2 text-[11px] text-muted-foreground">{thread.gloss}</p>}
+    </div>
+  );
 }
 
 /** A drawn stand-in for the photo she just took. No real image is taken or stored. */
@@ -344,9 +421,9 @@ function HerPage({
                             {state}
                           </span>
                         </div>
-                        {(page.lines[it.id] ?? []).map((l) => (
+                        {(page.lines[it.id] ?? []).map((l, i) => (
                           <div
-                            key={l}
+                            key={i}
                             className="mt-0.5 font-mono text-[11px] text-muted-foreground"
                           >
                             {l}
@@ -528,7 +605,8 @@ function HerPage({
                             <p className="mt-1">{it.instead}</p>
                             {told && (
                               <p className="animate-pop-in mt-2 rounded-lg border border-agt/40 bg-agt-soft px-2 py-1.5">
-                                {GUIDE.agent} has been told. You have not lost your place.
+                                {GUIDE.agent} knows you need help with this. You have not lost your
+                                place.
                               </p>
                             )}
                             <div className="mt-2 flex flex-wrap gap-2">
@@ -537,7 +615,7 @@ function HerPage({
                                   onClick={() => onStuck(it.id)}
                                   className={`${PILL} bg-primary text-primary-foreground`}
                                 >
-                                  Tell the agent I am stuck on this
+                                  Tell the agent I need help with this
                                 </button>
                               )}
                               <button
@@ -623,6 +701,8 @@ function Guide() {
   const [extras, setExtras] = useState<Extra[]>([]);
   // A reply started from her page, waiting in the type box.
   const [draft, setDraft] = useState<{ id: string; text: string } | null>(null);
+  // Which of the step's pre-typed replies is in the box: the main one, or the alternative.
+  const [choice, setChoice] = useState(0);
   const [tab, setTab] = useState<Tab>("texts");
   const [flash, setFlash] = useState<"texts" | "page" | null>(null);
   const [epoch, setEpoch] = useState(0);
@@ -657,12 +737,14 @@ function Guide() {
     const onPage = Boolean(stepById(to).page?.demo);
     setTurns((t) => [...t, onPage || via === undefined ? { stepId: to } : { stepId: to, via }]);
     setDraft(null);
+    setChoice(0);
     if (onPage) openPage();
   };
   const back = () => {
     if (turns.length <= 1) return;
     const n = turns.length - 1;
     setTurns(turns.slice(0, n));
+    setChoice(0);
     setEvents((ev) => ev.map((e) => (e.at > n ? { ...e, at: n } : e)));
     setExtras((ex) => ex.map((e) => (e.at > n ? { ...e, at: n } : e)));
   };
@@ -671,12 +753,13 @@ function Guide() {
     setEvents([]);
     setExtras([]);
     setDraft(null);
+    setChoice(0);
     setEpoch((e) => e + 1);
   };
 
   const addOnPage = (id: string) => {
     const at = turns.length;
-    const forWho = whoOf(id) === "Her mother" ? " for your mother" : "";
+    const forWho = whoOf(id) === GUIDE.other ? ` for ${GUIDE.other}` : "";
     setEvents((ev) => [...ev, { kind: "got", id, at, time: now }]);
     setExtras((ex) => [
       ...ex,
@@ -697,7 +780,12 @@ function Guide() {
     setEvents((ev) => [...ev, { kind: "stuck", id, at, time: now }]);
     setExtras((ex) => [
       ...ex,
-      { at, say: [{ kind: "system", text: `${GUIDE.agent} notified: stuck on ${labelOf(id)}` }] },
+      {
+        at,
+        say: [
+          { kind: "system", text: `${GUIDE.agent} notified: help requested with ${labelOf(id)}` },
+        ],
+      },
     ]);
   };
   const textGuide = (id?: string) => {
@@ -707,8 +795,8 @@ function Guide() {
   const sendDraft = () => {
     if (!draft) return;
     const next = page.stuck.includes(draft.id)
-      ? `${GUIDE.agent} already knows you are stuck on this, so you have not lost your place.`
-      : `If none of that works, tap "Tell the agent I am stuck on this" on your page and ${GUIDE.agent} will know before the deadline: ${LINK}`;
+      ? `${GUIDE.agent} already knows you need help with this, so you have not lost your place.`
+      : `If none of that works, tap "Tell the agent I need help with this" on your page and ${GUIDE.agent} will know before the deadline: ${LINK}`;
     setExtras((ex) => [
       ...ex,
       {
@@ -741,8 +829,25 @@ function Guide() {
   };
 
   const show = (t: Tab) => `${tab === t ? "" : "hidden"} min-[920px]:block`;
-  const atEnd = current.chips.length === 0 && !current.typed && !draft;
-  const typed = draft?.text ?? current.typed?.text;
+  // A text message has no buttons: her reply is already typed and the viewer presses Send.
+  const options = [current.reply, current.alt].filter((r): r is Reply => Boolean(r));
+  const picked = options[choice] ?? options[0];
+  const unpicked = options.length > 1 ? options[choice === 0 ? 1 : 0] : undefined;
+  const boxText = draft?.text ?? picked?.text;
+  const swap = draft
+    ? picked && { text: picked.text, pick: () => setDraft(null) }
+    : unpicked && { text: unpicked.text, pick: () => setChoice(choice === 0 ? 1 : 0) };
+  const send = () => {
+    if (draft) sendDraft();
+    else if (picked) go(picked.to, picked.text);
+  };
+  // A move that is not a text from her: she opens her page, or the guide texts first.
+  const next = current.next;
+  const followLink = () => {
+    if (next && stepById(next.to).page?.demo) go(next.to);
+    else openPage();
+  };
+  const atEnd = !picked && !next && !current.other?.reply && !draft;
 
   return (
     <main className="min-h-screen px-4 pb-16">
@@ -762,11 +867,11 @@ function Guide() {
           </h1>
           <p className="mt-3 max-w-3xl text-muted-foreground">
             {GUIDE.applicant}'s number has come up for {GUIDE.building}. She is doing the documents
-            for herself and her mother. She answers the guide by text. Her documents go on her own
-            page, which is only her list and where it stands. A first version would be the texts
-            plus a secure link for adding documents. Tap a suggested reply, or send the one already
-            typed, to follow one path. The notes say which problem each moment answers and the rule
-            behind it.
+            for herself and her mother, Hawa. She answers the guide by text. Her documents go on her
+            own page, which is only her list and where it stands. A first version would be the texts
+            plus a secure link for adding documents. Her replies are already typed in the text box:
+            press Send to follow one path. The notes say which problem each moment answers and the
+            rule behind it.
           </p>
         </header>
 
@@ -831,7 +936,7 @@ function Guide() {
                         <Message
                           key={j}
                           m={m.kind === "bot" ? { ...m, text: fill(m.text, i) } : m}
-                          onLink={openPage}
+                          onLink={followLink}
                         />
                       ))}
                       {extras
@@ -847,7 +952,7 @@ function Guide() {
                               </div>
                             )}
                             {x.say.map((m, j) => (
-                              <Message key={j} m={m} onLink={openPage} />
+                              <Message key={j} m={m} onLink={followLink} />
                             ))}
                           </div>
                         ))}
@@ -857,29 +962,6 @@ function Guide() {
               </div>
 
               <div className="border-t border-border/40 bg-card p-3">
-                {(current.chips.length > 0 || current.others) && (
-                  <div className="mb-2 flex flex-wrap gap-1.5">
-                    {current.chips.map((c) => (
-                      <button
-                        key={c.label}
-                        onClick={() => go(c.to, c.label)}
-                        className="rounded-full border border-border bg-accent px-3 py-1 text-left font-display text-sm font-semibold shadow-sm transition active:translate-y-0.5"
-                      >
-                        {c.label}
-                      </button>
-                    ))}
-                    {current.others?.map((o) => (
-                      <span
-                        key={o}
-                        title="This sketch follows one path"
-                        className="rounded-full border border-dashed border-border/40 px-3 py-1 font-display text-sm text-muted-foreground"
-                      >
-                        {o}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
                 {atEnd ? (
                   <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
                     <span>That is the end of this path.</span>
@@ -891,37 +973,53 @@ function Guide() {
                     </button>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-end gap-2">
                     <div
-                      className={`min-w-0 flex-1 truncate rounded-full border px-3 py-2 text-sm ${typed ? "border-border bg-card" : "border-border/40 bg-background text-muted-foreground"}`}
+                      className={`min-w-0 flex-1 break-words rounded-2xl border px-3 py-2 text-sm ${boxText ? "border-border bg-card" : "border-border/40 bg-background text-muted-foreground"}`}
                     >
-                      {typed ?? "Type a reply, or tap one"}
+                      {boxText ?? "Text message"}
                     </div>
                     <button
-                      onClick={() =>
-                        draft
-                          ? sendDraft()
-                          : current.typed && go(current.typed.to, current.typed.text)
-                      }
-                      disabled={!typed}
+                      onClick={send}
+                      disabled={!boxText}
                       className="whitespace-nowrap rounded-full border border-border bg-primary px-3 py-2 font-display text-sm font-semibold text-primary-foreground shadow-sm transition active:translate-y-0.5 disabled:opacity-30"
                     >
                       Send
                     </button>
                   </div>
                 )}
-
-                {!atEnd && (
-                  <p className="mt-2 text-[11px] text-muted-foreground">
-                    {draft
-                      ? "A draft started from her page. Send it, or tap a reply to carry on."
-                      : current.typed
-                        ? "She typed this in her own words. Suggested replies come from the rule."
-                        : "Suggested replies come from the rule. She can also type her own. Greyed-out ones are other answers; this sketch follows one."}
-                  </p>
+                {!atEnd && swap && (
+                  <button
+                    onClick={swap.pick}
+                    className="mt-2 text-left text-[11px] text-muted-foreground underline underline-offset-2"
+                  >
+                    or send: {swap.text}
+                  </button>
                 )}
               </div>
             </div>
+
+            {next && (
+              <button
+                onClick={() => go(next.to)}
+                className="mx-auto mt-3 block w-full max-w-[420px] rounded-full border border-dashed border-border bg-accent px-3 py-2 font-display text-sm font-semibold shadow-sm transition active:translate-y-0.5"
+              >
+                {next.label}
+              </button>
+            )}
+            {current.other?.reply && (
+              <p className="mx-auto mt-3 max-w-[420px] text-center text-sm font-semibold">
+                Waiting on {GUIDE.other}. Press Send on {GUIDE.other}'s phone.
+              </p>
+            )}
+            {current.other && (
+              <div className="mt-5 min-[920px]:hidden">
+                <OtherPhone thread={current.other} onSend={(r) => go(r.to)} />
+              </div>
+            )}
+            <p className="mx-auto mt-3 max-w-[420px] text-center text-[11px] text-muted-foreground">
+              Her replies are pre-typed for this sketch. Press Send to follow one path.
+            </p>
 
             <div className="mx-auto mt-3 flex max-w-[420px] items-center justify-between gap-3">
               <button
@@ -946,6 +1044,11 @@ function Guide() {
 
           {/* Her page */}
           <div className={show("page")}>
+            {current.other && (
+              <div className="mb-6 hidden min-[920px]:block">
+                <OtherPhone thread={current.other} onSend={(r) => go(r.to)} />
+              </div>
+            )}
             <div className="mb-2 hidden font-display text-xs font-bold uppercase tracking-widest text-muted-foreground min-[920px]:block">
               Her page · just the list and where it stands
             </div>

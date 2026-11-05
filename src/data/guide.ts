@@ -1,11 +1,13 @@
 // Script for the AI document guide prototype (/guide). Everything here is
-// invented: the applicant, her mother, the building and the marketing agent.
+// invented: the applicant, her mother Hawa, the building and the marketing agent.
 // The handbook citations are real. This is a sketch of the PRD, not a spec.
 
 import { addWeekdays } from "@/lib/clock";
 
 export const GUIDE = {
   applicant: "Amina",
+  /** The other adult on the application. The guide knows her name, not that she is Amina's mother. */
+  other: "Hawa",
   building: "Sample Avenue Apartments",
   agent: "Northside Leasing",
   log: "0412",
@@ -24,12 +26,13 @@ export const DUE_TEXT = day(GUIDE_DUE);
 export const LINK = "northside.example/p/0412";
 
 export type Msg =
-  | { kind: "bot"; text: string; to?: string }
-  | { kind: "other"; name: string; text: string }
+  | { kind: "bot"; text: string }
   | { kind: "system"; text: string }
-  | { kind: "draft"; title: string; body: string };
+  /** A text the guide drafts for someone who is not on the application. She copies it and sends it herself. */
+  | { kind: "draft"; title: string; body: string; copy: string };
 
-export type Chip = { label: string; to: string };
+/** A text she sends, and the step it leads to. */
+export type Reply = { text: string; to: string };
 
 /** What a step changes on her page. Folded in order along the path she has taken. */
 export type PagePatch = {
@@ -37,7 +40,7 @@ export type PagePatch = {
   expanded?: string;
   /** Documents received for an item at this step. */
   got?: Record<string, number>;
-  /** Items the agent has been told she is stuck on. */
+  /** Items she has asked for help with. The agent is told. */
   stuck?: string[];
   /** A small dated line added under an item. */
   lines?: Record<string, string>;
@@ -50,11 +53,14 @@ export type Step = {
   id: string;
   beat: number;
   say: Msg[];
-  chips: Chip[];
-  /** A reply she types in her own words instead of tapping a suggestion. */
-  typed?: { text: string; to: string };
-  /** Other answers a real applicant could give. Shown greyed out: this sketch follows one path. */
-  others?: string[];
+  /** Her next text, already typed in the box. A text message has no buttons: the viewer presses Send. */
+  reply?: Reply;
+  /** Something else she could send instead, offered under the box. */
+  alt?: Reply;
+  /** A move that is not a text from her: she opens her page, or the guide texts first. */
+  next?: { label: string; to: string };
+  /** The separate thread on the other adult's phone. */
+  other?: { say: { from: "guide" | "her"; text: string }[]; reply?: Reply; gloss?: string };
   page?: PagePatch;
 };
 
@@ -89,7 +95,10 @@ export const BEATS: Beat[] = [
       },
       {
         finding:
-          "The rule supplies the options. The AI understands her words and confirms. It never invents an option.",
+          "The numbered options come from the rule. She can answer with a number or in her own words, and the guide confirms what it understood. It never invents an option.",
+      },
+      {
+        finding: "The guide knows names from the application, not relationships, so it uses names.",
       },
     ],
   },
@@ -163,19 +172,24 @@ export const BEATS: Beat[] = [
         finding: "The slowest documents come from other people.",
         rule: "Since April 2025 the City no longer requires signed statements to be notarized.",
       },
+      {
+        finding:
+          "The guide only contacts people on the application. She forwards the letter herself.",
+      },
     ],
   },
   {
     n: 9,
-    title: "Acting for her mother",
+    title: "Acting for Hawa",
     notes: [
+      { finding: "She agrees from her own phone, not through her daughter's." },
       {
         finding: "The person doing the documents is often not the applicant.",
         rule: "A 2025 Council bill (Intro 1265) lets applicants name a representative. Not confirmed to be in effect.",
       },
       {
         finding:
-          "Her mother answers in Spanish and the guide replies in Spanish. The AI understands the words and confirms. It never invents an option.",
+          "Hawa answers in Spanish and the guide replies in Spanish. The AI understands the words and confirms. It never invents an option.",
         rule: "Handbook §4-3.C.3: notices in the applicant's preferred language.",
       },
     ],
@@ -215,25 +229,24 @@ export const NEVER = [
   "Ask about immigration status",
   "Suggest which documents to send to reach a number",
   "Invent a rule",
+  "Contact anyone who is not on the application",
 ];
 
-export const DEPOSIT_KINDS = [
-  "Loan",
-  "Loan repayment",
-  "Reimbursement",
-  "Gift",
-  "Refund",
-  "Other income",
+/** The rule's options, numbered in words. A text message has no buttons, so she replies with a number or in her own words. */
+const numbered = (opts: string[]) => opts.map((o, i) => `${i + 1} for ${o}`).join(", ");
+
+const PAY_OPTIONS = ["weekly", "every two weeks", "twice a month", "monthly", "cash"];
+const DEPOSIT_OPTIONS = [
+  "a loan",
+  "a loan repayment",
+  "a reimbursement",
+  "a gift",
+  "a refund",
+  "other income",
 ];
 
-const PAY_OPTIONS = [
-  "Weekly",
-  "Every two weeks",
-  "Twice a month",
-  "Monthly",
-  "In cash",
-  "I work for myself",
-];
+const ASK_OTHER = `Amina has asked to handle your documents for ${GUIDE.building}. Reply YES to allow it, or NO.`;
+const OTHER_YES = "Sí, mi hija puede hacerlo por mí.";
 
 export const STEPS: Step[] = [
   {
@@ -253,10 +266,8 @@ export const STEPS: Step[] = [
         text: `To check this is real: ${GUIDE.agent} is the agent listed under the Contact tab of your Housing Connect application. I am an automated guide. A person at the agent's office can step in at any time. Reply START to begin.`,
       },
     ],
-    chips: [
-      { label: "START", to: "q-household" },
-      { label: "How do I know this is real?", to: "verify" },
-    ],
+    reply: { text: "START", to: "q-household" },
+    alt: { text: "How do I know this is real?", to: "verify" },
   },
   {
     id: "verify",
@@ -264,10 +275,10 @@ export const STEPS: Step[] = [
     say: [
       {
         kind: "bot",
-        text: `Fair question. Do not trust a link just because I sent it. Log in to Housing Connect yourself, open this application and look at the Contact tab. It names ${GUIDE.agent} and the number this text came from. I will never ask you for a password or a payment.`,
+        text: `Fair question. Do not trust a link just because I sent it. Log in to Housing Connect yourself, open this application and look at the Contact tab. It names ${GUIDE.agent} and the number this text came from. I will never ask you for a password or a payment. Reply START when you are ready.`,
       },
     ],
-    chips: [{ label: "START", to: "q-household" }],
+    reply: { text: "START", to: "q-household" },
   },
   {
     id: "q-household",
@@ -275,11 +286,10 @@ export const STEPS: Step[] = [
     say: [
       {
         kind: "bot",
-        text: "A few questions first, so I only ask for what applies to you. You can answer in your own words. Who will live in the apartment?",
+        text: `A few questions first, so I only ask for what applies to you. Your application lists two adults: you and ${GUIDE.other}. Is that still right? Reply 1 for yes, 2 if something has changed.`,
       },
     ],
-    chips: [{ label: "Me and my mother", to: "q-pay" }],
-    others: ["Just me", "Me and my partner", "Me and children"],
+    reply: { text: "1", to: "q-pay" },
   },
   {
     id: "q-pay",
@@ -287,26 +297,32 @@ export const STEPS: Step[] = [
     say: [
       {
         kind: "bot",
-        text: "How are you paid? Weekly, every two weeks, twice a month, monthly, in cash, or you work for yourself.",
+        text: `How are you paid? Reply ${numbered(PAY_OPTIONS)}. Or just tell me.`,
       },
     ],
-    chips: [],
-    typed: { text: "every other friday", to: "q-pay-confirm" },
-    others: PAY_OPTIONS,
+    reply: { text: "every other friday", to: "q-pay-confirm" },
   },
   {
     id: "q-pay-confirm",
     beat: 2,
-    say: [{ kind: "bot", text: "I will put that down as every two weeks. Is that right?" }],
-    chips: [{ label: "Yes", to: "q-pay-mother" }],
-    others: ["No"],
+    say: [
+      {
+        kind: "bot",
+        text: "I will put that down as 2, every two weeks. Reply YES if that is right, or NO.",
+      },
+    ],
+    reply: { text: "YES", to: "q-pay-other" },
   },
   {
-    id: "q-pay-mother",
+    id: "q-pay-other",
     beat: 2,
-    say: [{ kind: "bot", text: "And your mother? Same choices, or she is not working." }],
-    chips: [{ label: "Weekly", to: "q-benefits" }],
-    others: ["Every two weeks", "Twice a month", "Monthly", "In cash", "She is not working"],
+    say: [
+      {
+        kind: "bot",
+        text: `And ${GUIDE.other}? Reply ${numbered(PAY_OPTIONS)}, 6 if she is not working. Or just tell me.`,
+      },
+    ],
+    reply: { text: "1", to: "q-benefits" },
   },
   {
     id: "q-benefits",
@@ -314,18 +330,32 @@ export const STEPS: Step[] = [
     say: [
       {
         kind: "bot",
-        text: "Does anyone in the household get benefits such as SNAP, Medicaid or cash assistance? If so, one letter may take the place of your pay stubs.",
+        text: `Weekly for ${GUIDE.other}. Does anyone in the household get benefits such as SNAP, Medicaid or cash assistance? If so, one letter may take the place of your pay stubs. Reply 1 for yes, 2 for no.`,
       },
     ],
-    chips: [{ label: "No", to: "q-lease" }],
-    others: ["Yes"],
+    reply: { text: "2", to: "q-lease" },
   },
   {
     id: "q-lease",
     beat: 2,
-    say: [{ kind: "bot", text: "Do you have a lease where you live now?" }],
-    chips: [{ label: "No, we live with a relative", to: "list" }],
-    others: ["Yes"],
+    say: [
+      {
+        kind: "bot",
+        text: "Do you have a lease where you live now? Reply 1 for yes, 2 for no. Or just tell me.",
+      },
+    ],
+    reply: { text: "No, my mother and I live with my aunt", to: "q-lease-check" },
+  },
+  {
+    id: "q-lease-check",
+    beat: 2,
+    say: [
+      {
+        kind: "bot",
+        text: `No lease, noted. When you say "my mother", is that ${GUIDE.other}, the other adult on your application? Reply 1 for yes, 2 for no.`,
+      },
+    ],
+    reply: { text: "1", to: "list" },
   },
   {
     id: "list",
@@ -333,18 +363,18 @@ export const STEPS: Step[] = [
     say: [
       {
         kind: "bot",
-        text: "Thank you. Here is your household's list. It only has what applies to you.",
+        text: `Thank you. You and ${GUIDE.other} live with your aunt and have no lease. Here is your household's list. It only has what applies to you.`,
       },
       {
         kind: "bot",
-        text: "You: photo ID, Social Security card or tax ID, 2 pay stubs.\nYour mother: photo ID, Social Security card or tax ID, 4 pay stubs.\nHousehold: proof of where you live now. With no lease, that is a signed letter from the relative you live with.",
+        text: `You: photo ID, Social Security card or tax ID, 2 pay stubs.\n${GUIDE.other}: photo ID, Social Security card or tax ID, 4 pay stubs.\nHousehold: proof of where you live now. With no lease, that is a signed letter from the relative you live with.`,
       },
       {
         kind: "bot",
-        text: `The list is on your page too, with what counts for each one: ${LINK} The agent may ask for more after reviewing these. If they do, it comes here and to your page.`,
+        text: `The list is on your page too, with what counts for each one: ${LINK} The agent may ask for more after reviewing these. If they do, it comes here and to your page. Text me any question.`,
       },
     ],
-    chips: [{ label: "What counts as a pay stub?", to: "explain" }],
+    reply: { text: "what counts as a pay stub?", to: "explain" },
     page: { ready: true },
   },
   {
@@ -353,10 +383,10 @@ export const STEPS: Step[] = [
     say: [
       {
         kind: "bot",
-        text: "A pay stub comes from your employer and shows your name, the pay period and your pay before deductions. You need 2, because you are paid every two weeks. Your mother is paid weekly, so she needs 4. Send your most recent ones, in a row. Your employer's payroll site usually has them the same day. (Handbook §5-4.C)",
+        text: `A pay stub comes from your employer and shows your name, the pay period and your pay before deductions. You need 2, because you are paid every two weeks. ${GUIDE.other} is paid weekly, so she needs 4. Send your most recent ones, in a row. Your employer's payroll site usually has them the same day. (Handbook §5-4.C)`,
       },
     ],
-    chips: [{ label: "How is my income read?", to: "income" }],
+    reply: { text: "how is my income worked out?", to: "income" },
     page: { expanded: "a-stubs" },
   },
   {
@@ -376,13 +406,13 @@ export const STEPS: Step[] = [
         text: `When you are ready to add a pay stub: please don't text me photos of documents. A text thread isn't a safe place for them. Add them on your page instead: ${LINK}`,
       },
     ],
-    chips: [{ label: "Open my page", to: "upload-wrong" }],
+    next: { label: "Next: she opens her page from the link", to: "upload-wrong" },
   },
   {
     id: "upload-wrong",
     beat: 5,
     say: [{ kind: "system", text: "On her page, she adds a photo for her pay stubs." }],
-    chips: [{ label: "Add another photo on my page", to: "upload-right" }],
+    next: { label: "Next: she tries again with another photo", to: "upload-right" },
     page: { demo: "stub-wrong" },
   },
   {
@@ -395,10 +425,7 @@ export const STEPS: Step[] = [
         text: `Got your pay stub for Oct 12 to 25. That is {STUBS} of 2. ${GUIDE.agent} can see it too. Reply LIST any time to see where things stand.`,
       },
     ],
-    chips: [
-      { label: "LIST", to: "list-status" },
-      { label: "Continue", to: "bonus" },
-    ],
+    reply: { text: "LIST", to: "list-status" },
     page: {
       demo: "stub-right",
       got: { "a-stubs": 1 },
@@ -415,7 +442,7 @@ export const STEPS: Step[] = [
         text: `{STATUS} Your page: ${LINK}`,
       },
     ],
-    chips: [{ label: "Continue", to: "bonus" }],
+    next: { label: "Next: the guide asks about the stub", to: "bonus" },
   },
   {
     id: "bonus",
@@ -423,11 +450,10 @@ export const STEPS: Step[] = [
     say: [
       {
         kind: "bot",
-        text: "One thing on this stub: a line marked Bonus, $400. The agent will likely ask about it, because a regular bonus is counted differently from a one-time one (Handbook §5-4.C). Is it one-time or regular?",
+        text: "One thing on this stub: a line marked Bonus, $400. The agent will likely ask about it, because a regular bonus is counted differently from a one-time one (Handbook §5-4.C). Which is it? Reply 1 for one-time, 2 for regular.",
       },
     ],
-    chips: [{ label: "One-time", to: "bonus-noted" }],
-    others: ["Regular"],
+    reply: { text: "1", to: "bonus-noted" },
   },
   {
     id: "bonus-noted",
@@ -435,10 +461,10 @@ export const STEPS: Step[] = [
     say: [
       {
         kind: "bot",
-        text: "Noted: one-time bonus. I have attached your answer to the stub, so the agent sees it with the document and does not have to ask.",
+        text: "Noted as 1, a one-time bonus. I have attached your answer to the stub, so the agent sees it with the document and does not have to ask.",
       },
     ],
-    chips: [{ label: "Next: my mother's pay stubs", to: "stuck" }],
+    next: { label: `Next: ${GUIDE.other}'s pay stubs`, to: "stuck" },
     page: {
       lines: { "a-stubs": "Note added Nov 5, 7:43 pm: one-time bonus" },
       history: [["7:43 PM", "Note added to the stub: one-time bonus"]],
@@ -450,11 +476,10 @@ export const STEPS: Step[] = [
     say: [
       {
         kind: "bot",
-        text: "Your mother needs 4 pay stubs, because she is paid weekly. Do you have them?",
+        text: `${GUIDE.other} needs 4 pay stubs, because she is paid weekly. Do you have them? Reply 1 for yes, 2 for not yet. Or just tell me.`,
       },
     ],
-    chips: [{ label: "I can't get these in time", to: "stuck-help" }],
-    others: ["Yes, I have them"],
+    reply: { text: "I can't get these in time", to: "stuck-help" },
   },
   {
     id: "stuck-help",
@@ -462,28 +487,31 @@ export const STEPS: Step[] = [
     say: [
       {
         kind: "bot",
-        text: "That is okay. Three things. First, the rules accept a letter from her employer in their place. Here is a message she can send them.",
+        text: `That is okay. Three things. First, the rules accept a letter from her employer in place of the stubs. I only contact people on the application, so I will not text her employer. Here is a message you or ${GUIDE.other} can send them.`,
       },
       {
         kind: "draft",
-        title: "Message for her employer",
+        title: `Message for ${GUIDE.other}'s employer`,
         body: "Hello. I am applying for housing and need a short letter on company letterhead confirming my job, my pay rate, my usual weekly hours and my start date. I need it by Tuesday, Nov 17. Thank you.",
+        copy: "Copy to send to her employer",
       },
       {
         kind: "bot",
-        text: `Second, I have told ${GUIDE.agent} that you are waiting on her employer, so they know before the deadline.`,
+        text: `Second, I have told ${GUIDE.agent} that you need help with this and are waiting on her employer, so they know before the deadline.`,
       },
-      { kind: "system", text: `${GUIDE.agent} notified: waiting on employer` },
+      { kind: "system", text: `${GUIDE.agent} notified: help requested, waiting on employer` },
       {
         kind: "bot",
         text: `Third, add what you have on your page. Sending part of the set is allowed. If something is still missing on ${DUE_TEXT}, the agent has to ask you again and give you at least five more weekdays. You are not rejected outright (Handbook §4-5.D.2).`,
       },
     ],
-    chips: [{ label: "Next: proof of address", to: "lease" }],
+    next: { label: "Next: proof of address", to: "lease" },
     page: {
       stuck: ["m-stubs"],
-      lines: { "m-stubs": "Agent told Nov 5, 7:46 pm: waiting on her employer" },
-      history: [["7:46 PM", "Agent told: waiting on employer for her mother's pay stubs"]],
+      lines: { "m-stubs": "Help requested Nov 5, 7:46 pm: waiting on her employer" },
+      history: [
+        ["7:46 PM", `Help requested: waiting on an employer for ${GUIDE.other}'s pay stubs`],
+      ],
     },
   },
   {
@@ -492,51 +520,70 @@ export const STEPS: Step[] = [
     say: [
       {
         kind: "bot",
-        text: "You said you live with a relative and have no lease. A signed letter from that relative works. Here is one they can sign.",
+        text: "You said you live with your aunt and have no lease. A signed letter from her works. Here is one she can sign.",
       },
       {
         kind: "draft",
         title: "Letter for your relative to sign",
-        body: "I confirm that Amina and her mother live with me at my address and have done so since the date written below. Name, address, date they moved in, signature and today's date.",
+        body: `I confirm that ${GUIDE.applicant} and ${GUIDE.other} live with me at my address and have done so since the date written below. Name, address, date they moved in, signature and today's date.`,
+        copy: "Copy to send to your relative",
       },
       {
         kind: "bot",
         text: "It does not need a notary. Since April 2025 the City no longer requires signed statements like this to be notarized.",
       },
+      {
+        kind: "bot",
+        text: `I only contact people on the application, so I have not sent this to your aunt. Copy it and send it to her yourself. When she has signed it, add a photo of it on your page: ${LINK}`,
+      },
     ],
-    chips: [{ label: "Send it to my relative", to: "proxy" }],
+    reply: { text: "ok, I'll send it to her", to: "proxy-ask" },
     page: {
-      lines: { "h-address": "Letter sent to your relative to sign, Nov 5, 7:48 pm" },
-      history: [["7:48 PM", "Letter sent to your relative to sign"]],
+      lines: { "h-address": "Letter drafted for your relative to sign, Nov 5, 7:48 pm" },
+      history: [["7:48 PM", "Letter drafted for your relative to sign"]],
     },
   },
   {
-    id: "proxy",
+    id: "proxy-ask",
     beat: 9,
     say: [
       {
         kind: "bot",
-        text: "You are adding documents for your mother as well. I need her to say that is okay, so I have texted her in Spanish, the language she chose.",
-      },
-      {
-        kind: "bot",
-        to: "To her mother",
-        text: `Amina está enviando sus documentos de vivienda para ${GUIDE.building}. ¿Está de acuerdo? Puede responder con sus propias palabras.`,
-      },
-      { kind: "other", name: "Her mother", text: "Sí, mi hija puede hacerlo por mí." },
-      {
-        kind: "bot",
-        to: "To her mother",
-        text: `Gracias. Lo anoto como un sí. Usted puede ver todo lo que Amina añada en su página: ${LINK}`,
-      },
-      {
-        kind: "bot",
-        text: "Confirmed. Anything you add for your mother is recorded as added by you, and she can see it.",
+        text: `One more thing. You are adding documents for ${GUIDE.other} as well. She has to agree to that herself, so I have texted her on her own phone.`,
       },
     ],
-    chips: [],
-    typed: { text: "does money my aunt sends me count as income?", to: "question" },
-    page: { history: [["7:49 PM", "Her mother confirmed Amina may act for her"]] },
+    other: {
+      say: [{ from: "guide", text: ASK_OTHER }],
+      reply: { text: OTHER_YES, to: "proxy-done" },
+    },
+  },
+  {
+    id: "proxy-done",
+    beat: 9,
+    say: [
+      {
+        kind: "bot",
+        text: `${GUIDE.other} has confirmed. You can add her documents now.`,
+      },
+    ],
+    other: {
+      say: [
+        { from: "guide", text: ASK_OTHER },
+        { from: "her", text: OTHER_YES },
+        {
+          from: "guide",
+          text: "Gracias. Lo anoto como un sí. Amina ya puede añadir documentos por usted. Si quiere cambiar esto, envíe STOP.",
+        },
+      ],
+      gloss:
+        "She answered in Spanish, so the guide does too: thank you, noted as a yes. Amina may now add documents for you. To change this, text STOP.",
+    },
+    reply: { text: "does money my aunt sends me count as income?", to: "question" },
+    page: {
+      history: [
+        ["7:49 PM", `${GUIDE.other} confirmed from her own phone that Amina may add her documents`],
+      ],
+    },
   },
   {
     id: "question",
@@ -548,21 +595,22 @@ export const STEPS: Step[] = [
       },
       {
         kind: "bot",
-        text: "If the agent sees it on a bank statement they will ask what it was. You can tell them now. Is it a loan, a loan repayment, a reimbursement, a gift, a refund or other income? Then tell me who it came from and why.",
+        text: `If the agent sees it on a bank statement they will ask what it was. You can tell them now. Reply ${numbered(DEPOSIT_OPTIONS)}. Or just tell me, with who it came from and why.`,
       },
     ],
-    chips: [],
-    typed: { text: "a gift from my aunt for my birthday", to: "question-noted" },
-    others: DEPOSIT_KINDS,
+    reply: { text: "a gift from my aunt for my birthday", to: "question-noted" },
   },
   {
     id: "question-noted",
     beat: 10,
     say: [
-      { kind: "bot", text: "Recorded: a gift from your aunt, for your birthday, one time." },
+      {
+        kind: "bot",
+        text: "Recorded as 4, a gift: from your aunt, for your birthday, one time. Reply NO if I have that wrong.",
+      },
       { kind: "bot", text: "I cannot tell you whether you qualify. The agent decides that." },
     ],
-    chips: [{ label: "LIST", to: "status" }],
+    reply: { text: "LIST", to: "status" },
     page: { history: [["7:52 PM", "Note recorded: gift from aunt, one time"]] },
   },
   {
@@ -578,7 +626,6 @@ export const STEPS: Step[] = [
         text: `What happens next: ${GUIDE.agent} reviews what you add. They may ask for more. Anything new comes here and to your page, with its own date.`,
       },
     ],
-    chips: [],
   },
 ];
 
@@ -686,7 +733,7 @@ export const LIST: ListGroup[] = [
     ],
   },
   {
-    who: "Her mother",
+    who: GUIDE.other,
     items: [
       {
         id: "m-id",
@@ -695,7 +742,7 @@ export const LIST: ListGroup[] = [
         counts: ID_COUNTS,
         instead:
           "Any other photo ID on the City's list, such as a state non-driver ID, a passport, a military ID or an IDNYC card.",
-        stuckDraft: "I can't get my mother's photo ID",
+        stuckDraft: "I can't get Hawa's photo ID",
         how: CARD_HOW,
       },
       {
@@ -705,7 +752,7 @@ export const LIST: ListGroup[] = [
         counts: SSN_COUNTS,
         instead:
           "An IRS letter showing a tax ID (ITIN) in place of a Social Security card, or the other way round.",
-        stuckDraft: "I can't find my mother's Social Security card",
+        stuckDraft: "I can't find Hawa's Social Security card",
         how: CARD_HOW,
       },
       {
@@ -725,7 +772,7 @@ export const LIST: ListGroup[] = [
           cite: "Handbook §5-4.C; the City's document list (Attachment H-1C)",
         },
         instead: "A letter from her employer confirming her job, pay rate and usual weekly hours.",
-        stuckDraft: "I can't get my mother's pay stubs",
+        stuckDraft: "I can't get Hawa's pay stubs",
         how: PAGE_HOW,
       },
     ],
