@@ -22,6 +22,13 @@ const day = (d: Date) =>
   d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
 export const DUE_TEXT = day(GUIDE_DUE);
 
+/** Later in the sketch the agent has reviewed the first request and asks for more. Mon 30 Nov 2026. */
+export const GUIDE_REVIEW = new Date(2026, 10, 30);
+/** The Handbook sets minimums for the first two requests (§4-5.D) and none for a request after review. The sketch uses five weekdays. */
+export const GUIDE_DUE2 = addWeekdays(GUIDE_REVIEW, 5);
+export const REVIEW_TEXT = day(GUIDE_REVIEW);
+export const DUE2_TEXT = day(GUIDE_DUE2);
+
 /** Her own page. An invented link on a reserved example domain. No app; it opens with a code texted to her phone. */
 export const LINK = "northside.example/p/0412";
 
@@ -47,6 +54,10 @@ export type PagePatch = {
   history?: [string, string][];
   /** The pay stub exchange, shown on her page rather than in the thread. */
   demo?: "stub-wrong" | "stub-right";
+  /** The agent has reviewed the first request. `more` are the rows that led to a follow-up. */
+  review?: { more: string[] };
+  /** A row this step happens on, on her page rather than in the thread. */
+  show?: string;
 };
 
 export type Step = {
@@ -220,6 +231,39 @@ export const BEATS: Beat[] = [
       },
     ],
   },
+  {
+    n: 12,
+    title: "The agent asks for more",
+    notes: [
+      {
+        finding:
+          "The list grows after the agent reviews. One applicant got new requests after each review, over four to six months by her estimate.",
+        rule: "The Handbook sets minimum response times for the first two requests (§4-5.D). It sets none for a request after review. The sketch uses five weekdays.",
+      },
+      {
+        finding:
+          "The guide carries the agent's request into the same thread and the same list: what is needed, why, in the agent's own words, and the new deadline.",
+      },
+      {
+        finding:
+          "The guide did not decide what more was needed. The agent did. The guide relays it and explains it.",
+      },
+    ],
+  },
+  {
+    n: 13,
+    title: "The second request",
+    notes: [
+      {
+        finding:
+          "One applicant's follow-ups all went by email and text after her first upload, with no one place to see what was still open.",
+      },
+      {
+        finding:
+          "The new items sit under the first request on her page, with their own due date and the agent's reason. Each one she adds gets a receipt, and LIST returns the new status.",
+      },
+    ],
+  },
 ];
 
 export const NEVER = [
@@ -244,6 +288,10 @@ const DEPOSIT_OPTIONS = [
   "a refund",
   "other income",
 ];
+
+/** The agent's own words for each thing asked for after review. Invented, like the agent. */
+const FOLLOW_NOTE_REASON = `"The address on ${GUIDE.applicant}'s driver's license does not match the address on the application. Please send a short signed note saying which address is current and since when."`;
+const FOLLOW_STUBS_REASON = `"We confirmed ${GUIDE.other}'s job with her employer. They told us her weekly hours changed in October. Please send her 2 most recent pay stubs."`;
 
 const ASK_OTHER = `Amina has asked to handle your documents for ${GUIDE.building}. Reply YES to allow it, or NO.`;
 const OTHER_YES = "Sí, mi hija puede hacerlo por mí.";
@@ -371,7 +419,7 @@ export const STEPS: Step[] = [
       },
       {
         kind: "bot",
-        text: `The list is on your page too, with what counts for each one: ${LINK} The agent may ask for more after reviewing these. If they do, it comes here and to your page. Text me any question.`,
+        text: `The list is on your page too, with what counts for each one: ${LINK} This is the first request. After ${GUIDE.agent} reviews what you send, they may ask for more. If they do, I will tell you here. Text me any question.`,
       },
     ],
     reply: { text: "what counts as a pay stub?", to: "explain" },
@@ -626,6 +674,97 @@ export const STEPS: Step[] = [
         text: `What happens next: ${GUIDE.agent} reviews what you add. They may ask for more. Anything new comes here and to your page, with its own date.`,
       },
     ],
+    next: { label: `Next: later, ${GUIDE.agent} has reviewed her documents`, to: "review" },
+  },
+  {
+    id: "review",
+    beat: 12,
+    say: [
+      {
+        kind: "system",
+        text: `${REVIEW_TEXT}. ${GUIDE.applicant} has added the rest of the first request, and ${GUIDE.agent} has reviewed it.`,
+      },
+      {
+        kind: "bot",
+        text: `${GUIDE.agent} has reviewed what you sent. Most of it is accepted. They need 2 more things. This does not mean anything is wrong.`,
+      },
+      {
+        kind: "bot",
+        text: "I did not decide what more is needed. The agent did. I can tell you what they asked for and why, in their words.",
+      },
+    ],
+    reply: { text: "what do they need?", to: "review-items" },
+    page: {
+      got: {
+        "a-id": 1,
+        "a-ssn": 1,
+        "a-stubs": 2,
+        "m-id": 1,
+        "m-ssn": 1,
+        "m-stubs": 4,
+        "h-address": 1,
+      },
+      review: { more: ["a-id", "m-stubs"] },
+      lines: { "m-stubs": "Letter from her employer received Nov 16, in place of the pay stubs" },
+      history: [
+        ["Nov 16, 6:20 PM", "The rest of the first request received by the agent"],
+        [
+          "Nov 30, 9:15 AM",
+          `${GUIDE.agent} reviewed the first request and asked for 2 more things`,
+        ],
+      ],
+    },
+  },
+  {
+    id: "review-items",
+    beat: 12,
+    say: [
+      {
+        kind: "bot",
+        text: `1. A signed note about your address. ${GUIDE.agent} wrote: ${FOLLOW_NOTE_REASON} A note in your own words is enough, signed and dated. It does not need a notary.`,
+      },
+      {
+        kind: "bot",
+        text: `2. ${GUIDE.other}'s 2 most recent pay stubs. ${GUIDE.agent} wrote: ${FOLLOW_STUBS_REASON}`,
+      },
+      {
+        kind: "bot",
+        text: `Both are due ${DUE2_TEXT}. That is five weekdays from today. They are on your page under "Asked for after review": ${LINK}`,
+      },
+    ],
+    next: { label: "Next: she adds the signed note on her page", to: "follow-add" },
+  },
+  {
+    id: "follow-add",
+    beat: 13,
+    say: [
+      { kind: "system", text: "On her page, she adds a photo of her signed note." },
+      {
+        kind: "bot",
+        text: `Got your signed note about your address. ${GUIDE.agent} can see it too. That is {FOLLOW} of 2 things from the second request. Reply LIST any time to see where things stand.`,
+      },
+    ],
+    reply: { text: "LIST", to: "follow-status" },
+    page: {
+      show: "f-note",
+      got: { "f-note": 1 },
+      lines: { "f-note": "Received Nov 30, 6:10 pm" },
+      history: [["Nov 30, 6:10 PM", "Signed note about your address received by the agent"]],
+    },
+  },
+  {
+    id: "follow-status",
+    beat: 13,
+    say: [
+      {
+        kind: "bot",
+        text: `{STATUS} Your page: ${LINK}`,
+      },
+      {
+        kind: "bot",
+        text: `What happens next: ${GUIDE.agent} reviews the new documents. If they need anything else, it comes here and to your page, with its own date.`,
+      },
+    ],
   },
 ];
 
@@ -644,6 +783,8 @@ export type ListItem = {
   stuckDraft: string;
   /** How to photograph it. */
   how: string[];
+  /** For something asked for after review: why, in the agent's own words. */
+  reason?: string;
 };
 export type ListGroup = { who: string; items: ListItem[] };
 
@@ -803,6 +944,51 @@ export const LIST: ListGroup[] = [
   },
 ];
 
+/** What the agent asks for after reviewing the first request. The agent decided these, not the guide. */
+export const FOLLOW_UP: ListGroup = {
+  who: "Asked for after review",
+  items: [
+    {
+      id: "f-note",
+      name: "Signed note about your address",
+      count: 1,
+      reason: FOLLOW_NOTE_REASON,
+      counts: {
+        rows: [
+          [
+            "What counts",
+            "A note in your own words saying which address is current and since when, with your signature and the date.",
+          ],
+          ["Good to know", "No notary needed since April 2025."],
+        ],
+        cite: `Asked for by ${GUIDE.agent} after review. Not on the City's document list.`,
+      },
+      instead: "",
+      stuckDraft: "",
+      how: PAGE_HOW,
+    },
+    {
+      id: "f-stubs",
+      name: `${GUIDE.other}'s 2 most recent pay stubs`,
+      count: 2,
+      reason: FOLLOW_STUBS_REASON,
+      counts: {
+        rows: [
+          [
+            "What counts",
+            "A pay stub from her employer that shows her name, the pay period and her pay before deductions.",
+          ],
+          ["How many", "2, her most recent ones."],
+        ],
+        cite: `Asked for by ${GUIDE.agent} after review.`,
+      },
+      instead: "",
+      stuckDraft: "",
+      how: PAGE_HOW,
+    },
+  ],
+};
+
 export const TOTAL_DOCS = LIST.reduce((n, g) => n + g.items.reduce((m, it) => m + it.count, 0), 0);
 export const ALL_ITEMS = LIST.flatMap((g) => g.items);
 
@@ -815,4 +1001,6 @@ export const SEEN: Record<string, string> = {
   "m-ssn": "a Social Security card",
   "m-stubs": "a pay stub",
   "h-address": "a signed letter from the person you live with",
+  "f-note": "a signed and dated note",
+  "f-stubs": "a pay stub",
 };

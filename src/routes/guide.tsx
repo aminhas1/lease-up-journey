@@ -4,11 +4,14 @@ import { Agent, City, Family } from "@/components/Characters";
 import {
   ALL_ITEMS,
   BEATS,
+  DUE2_TEXT,
   DUE_TEXT,
+  FOLLOW_UP,
   GUIDE,
   LINK,
   LIST,
   NEVER,
+  REVIEW_TEXT,
   SEEN,
   STEPS,
   TOTAL_DOCS,
@@ -51,16 +54,35 @@ type PageState = {
   stuck: string[];
   lines: Record<string, string[]>;
   history: [string, string][];
+  /** Set once the agent has reviewed the first request. `more` are the rows that led to a follow-up. */
+  review?: { more: string[] };
 };
 
 type Demo = NonNullable<PagePatch["demo"]>;
 
+/** The one control that moves the scripted path forward right now. */
+type Target = "send" | "next" | "retry" | "other" | "restart";
+/** What the last move changed, lit for about a second. `n` restarts the highlight on each move. */
+type Lit = { n: number; rows: string[]; extra: boolean; focus: "phone" | "other" | "row" };
+
+const GLOW = "glow-next";
+const BOX_GLOW = "border-ring ring-2 ring-ring/40";
+
+/** A brief highlight laid over whatever just changed. The parent must be `relative`. */
+function Spot({ n }: { n: number }) {
+  return <span key={n} aria-hidden className="spot" />;
+}
+
 const stepById = (id: string) => STEPS.find((s) => s.id === id) ?? STEPS[0]!;
-const itemById = (id: string) => ALL_ITEMS.find((it) => it.id === id) ?? ALL_ITEMS[0]!;
+const itemById = (id: string) =>
+  [...ALL_ITEMS, ...FOLLOW_UP.items].find((it) => it.id === id) ?? ALL_ITEMS[0]!;
+const isFollow = (id: string) => FOLLOW_UP.items.some((it) => it.id === id);
 const whoOf = (id: string) => LIST.find((g) => g.items.some((it) => it.id === id))?.who ?? "";
 const labelOf = (id: string) =>
   `${itemById(id).name}${whoOf(id) === GUIDE.other ? ` (${GUIDE.other})` : ""}`;
-const stamp = (time: string) => `Nov 5, ${time.toLowerCase()}`;
+/** Times on the first day are bare ("7:42 PM"); later ones carry their own date. */
+const dated = (time: string) => (time.includes(",") ? time : `Nov 5, ${time}`);
+const stamp = (time: string) => dated(time).replace(/[AP]M$/, (m) => m.toLowerCase());
 const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
 
 /** Her page is her list and where it stands: fold the script and what she did on the page, in order. */
@@ -80,6 +102,7 @@ function pageAt(turns: Turn[], events: PageEvent[]): PageState {
     if (patch) {
       if (patch.ready) page.ready = true;
       if (patch.expanded) page.expanded = patch.expanded;
+      if (patch.review) page.review = patch.review;
       for (const [id, n] of Object.entries(patch.got ?? {})) add(id, n);
       for (const id of patch.stuck ?? []) stuck(id);
       for (const [id, text] of Object.entries(patch.lines ?? {})) line(id, text);
@@ -103,21 +126,27 @@ function pageAt(turns: Turn[], events: PageEvent[]): PageState {
 
 const receivedCount = (page: PageState) =>
   ALL_ITEMS.reduce((n, it) => n + Math.min(it.count, page.got[it.id] ?? 0), 0);
+/** How many of the things asked for after review are fully in. */
+const followDone = (page: PageState) =>
+  FOLLOW_UP.items.filter((it) => (page.got[it.id] ?? 0) >= it.count).length;
 
 const WAITING = "Waiting";
 const RECEIVED = "Received by the agent";
 const STUCK = "Help requested";
+const REVIEWED = "Reviewed by the agent";
+const MORE = "Agent needs more";
 
 function rowState(it: ListItem, page: PageState) {
   const got = page.got[it.id] ?? 0;
-  if (got >= it.count) return RECEIVED;
+  if (page.review?.more.includes(it.id)) return MORE;
+  if (got >= it.count) return page.review && !isFollow(it.id) ? REVIEWED : RECEIVED;
   if (page.stuck.includes(it.id)) return STUCK;
   if (got > 0) return it.count - got === 1 ? "Needs another" : `Needs ${it.count - got} more`;
   return WAITING;
 }
 
 function statePill(state: string) {
-  if (state === RECEIVED) return "border-city/30 bg-city-soft text-city";
+  if (state === RECEIVED || state === REVIEWED) return "border-city/30 bg-city-soft text-city";
   if (state === WAITING) return "border-border/30 bg-muted text-muted-foreground";
   if (state === STUCK) return "border-agt/40 bg-agt-soft text-foreground";
   return "border-harm bg-harm-soft text-foreground";
@@ -211,14 +240,19 @@ function Message({ m, onLink }: { m: Msg; onLink: () => void }) {
 /** The other adult's own thread with the guide, on her own phone. */
 function OtherPhone({
   thread,
+  glow,
+  lit,
   onSend,
 }: {
   thread: NonNullable<Step["other"]>;
+  glow: boolean;
+  lit: Lit | null;
   onSend: (r: Reply) => void;
 }) {
   const reply = thread.reply;
+  const newest = thread.say.length - 1;
   return (
-    <div className="animate-pop-in mx-auto w-full max-w-[320px]">
+    <div data-other-phone className="animate-pop-in mx-auto w-full max-w-[320px] scroll-mt-28">
       <div className="mb-2 font-display text-xs font-bold uppercase tracking-widest text-muted-foreground">
         On {GUIDE.other}'s phone
       </div>
@@ -230,30 +264,32 @@ function OtherPhone({
         <div className="space-y-2 bg-background px-3 py-3 text-[13px]">
           {thread.say.map((m, i) =>
             m.from === "guide" ? (
-              <div key={i} className="max-w-[88%]">
+              <div key={i} className="relative max-w-[88%]">
                 <div className="inline-block rounded-2xl rounded-bl-sm border border-border/30 bg-secondary px-3 py-2">
                   {m.text}
                 </div>
+                {lit && i === newest && <Spot n={lit.n} />}
               </div>
             ) : (
-              <div key={i} className="flex justify-end">
+              <div key={i} className="relative flex justify-end">
                 <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-primary-foreground">
                   {m.text}
                 </div>
+                {lit && i === newest && <Spot n={lit.n} />}
               </div>
             ),
           )}
         </div>
         <div className="flex items-end gap-2 border-t border-border/40 bg-card p-2.5">
           <div
-            className={`min-w-0 flex-1 break-words rounded-2xl border px-3 py-1.5 text-[13px] ${reply ? "border-border bg-card" : "border-border/40 bg-background text-muted-foreground"}`}
+            className={`min-w-0 flex-1 break-words rounded-2xl border px-3 py-1.5 text-[13px] ${reply ? `bg-card ${glow ? BOX_GLOW : "border-border"}` : "border-border/40 bg-background text-muted-foreground"}`}
           >
             {reply?.text ?? "Text message"}
           </div>
           <button
             onClick={() => reply && onSend(reply)}
             disabled={!reply}
-            className="whitespace-nowrap rounded-full border border-border bg-primary px-3 py-1.5 font-display text-xs font-semibold text-primary-foreground shadow-sm transition active:translate-y-0.5 disabled:opacity-30"
+            className={`whitespace-nowrap rounded-full border border-border bg-primary px-3 py-1.5 font-display text-xs font-semibold text-primary-foreground shadow-sm transition active:translate-y-0.5 disabled:opacity-30 ${glow && reply ? GLOW : ""}`}
           >
             Send
           </button>
@@ -319,6 +355,8 @@ function HerPage({
   page,
   demo,
   flash,
+  glowRetry,
+  lit,
   onAdd,
   onStuck,
   onTextGuide,
@@ -327,6 +365,8 @@ function HerPage({
   page: PageState;
   demo: Demo | undefined;
   flash: boolean;
+  glowRetry: boolean;
+  lit: Lit | null;
   onAdd: (id: string) => void;
   onStuck: (id: string) => void;
   onTextGuide: (id?: string) => void;
@@ -354,6 +394,7 @@ function HerPage({
     setPanel(panel?.id === id && panel.kind === kind ? null : { id, kind, stage: "how" });
 
   const got = receivedCount(page);
+  const groups = page.review ? [...LIST, FOLLOW_UP] : LIST;
 
   return (
     <div
@@ -377,9 +418,10 @@ function HerPage({
         </div>
 
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-harm bg-harm-soft px-3 py-2 text-sm">
-          <span className="font-display font-bold">
-            {page.ready ? `${got} of ${TOTAL_DOCS} received · ` : ""}10 weekdays left · due{" "}
-            {DUE_TEXT}
+          <span className="min-w-[12rem] flex-1 font-display font-bold">
+            {page.review
+              ? `${GUIDE.agent} reviewed your documents on ${REVIEW_TEXT} and asked for ${FOLLOW_UP.items.length} more things. ${followDone(page)} of ${FOLLOW_UP.items.length} received · due ${DUE2_TEXT}`
+              : `${page.ready ? `${got} of ${TOTAL_DOCS} received · ` : ""}10 weekdays left · due ${DUE_TEXT}`}
           </span>
           <button onClick={() => onTextGuide()} className={`${PILL} bg-card`}>
             Text the guide
@@ -392,22 +434,45 @@ function HerPage({
           </p>
         ) : (
           <div key="list" className="animate-pop-in">
-            {LIST.map((g) => (
-              <div key={g.who} className="mt-4">
-                <div className="font-display text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  {g.who}
-                </div>
+            {!page.review && (
+              <p className="mt-2 text-xs text-muted-foreground">
+                This is the first request. {GUIDE.agent} may ask for more after they review it.
+              </p>
+            )}
+            <h3 className="mt-4 font-display text-sm font-bold">First request</h3>
+            {groups.map((g) => (
+              <div
+                key={g.who}
+                className={g === FOLLOW_UP ? "mt-5 border-t border-border/40 pt-4" : "mt-3"}
+              >
+                {g === FOLLOW_UP ? (
+                  <>
+                    <h3 className="font-display text-sm font-bold">{g.who}</h3>
+                    <p className="text-xs text-muted-foreground">
+                      {GUIDE.agent} asked for these on {REVIEW_TEXT}. Due {DUE2_TEXT}.
+                    </p>
+                  </>
+                ) : (
+                  <div className="font-display text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                    {g.who}
+                  </div>
+                )}
                 <ul className="mt-1 divide-y divide-border/20">
                   {g.items.map((it) => {
                     const state = rowState(it, page);
-                    const done = state === RECEIVED;
-                    const told = page.stuck.includes(it.id);
                     const have = page.got[it.id] ?? 0;
+                    const done = have >= it.count;
+                    const told = page.stuck.includes(it.id);
                     const mine = panel?.id === it.id ? panel : null;
                     const inDemo = demo && it.id === "a-stubs";
                     const kind = it.how[0]?.includes("card") ? "card" : "page";
                     return (
-                      <li key={it.id} className="py-2.5 text-sm">
+                      <li
+                        key={it.id}
+                        data-row={it.id}
+                        className="relative scroll-mt-28 py-2.5 text-sm"
+                      >
+                        {lit?.rows.includes(it.id) && <Spot n={lit.n} />}
                         <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
                           <span className="min-w-0">
                             {it.name}
@@ -421,6 +486,14 @@ function HerPage({
                             {state}
                           </span>
                         </div>
+                        {it.reason && (
+                          <p className="mt-1 flex items-start gap-1.5 text-xs">
+                            <Agent className="h-5 w-6 shrink-0" />
+                            <span>
+                              {GUIDE.agent}: {it.reason}
+                            </span>
+                          </p>
+                        )}
                         {(page.lines[it.id] ?? []).map((l, i) => (
                           <div
                             key={i}
@@ -446,7 +519,7 @@ function HerPage({
                           >
                             What counts
                           </button>
-                          {!done && (
+                          {!done && !it.reason && (
                             <button
                               onClick={() => toggle(it.id, "stuck")}
                               aria-expanded={mine?.kind === "stuck"}
@@ -471,7 +544,7 @@ function HerPage({
                                 </p>
                                 <button
                                   onClick={onDemoRetry}
-                                  className={`${PILL} mt-2 bg-primary text-primary-foreground`}
+                                  className={`${PILL} mt-2 bg-primary text-primary-foreground ${glowRetry ? GLOW : ""}`}
                                 >
                                   Try again
                                 </button>
@@ -591,7 +664,11 @@ function HerPage({
                               ))}
                             </dl>
                             <div className="mt-2 flex items-center gap-1.5 border-t border-dotted border-border/40 pt-2 text-[11px] text-muted-foreground">
-                              <City className="h-5 w-6 shrink-0" />
+                              {it.reason ? (
+                                <Agent className="h-5 w-6 shrink-0" />
+                              ) : (
+                                <City className="h-5 w-6 shrink-0" />
+                              )}
                               <span className="font-mono">{it.counts.cite}</span>
                             </div>
                           </div>
@@ -667,7 +744,7 @@ function HerPage({
                     key={i}
                     className="grid grid-cols-[auto_1fr] gap-2 border-t border-dotted border-border/40 py-1"
                   >
-                    <span className="font-mono text-muted-foreground">Nov 5, {t}</span>
+                    <span className="font-mono text-muted-foreground">{dated(t)}</span>
                     <span>{text}</span>
                   </li>
                 ))}
@@ -706,7 +783,10 @@ function Guide() {
   const [tab, setTab] = useState<Tab>("texts");
   const [flash, setFlash] = useState<"texts" | "page" | null>(null);
   const [epoch, setEpoch] = useState(0);
+  const [lit, setLit] = useState<Lit | null>(null);
+  const litCount = useRef(0);
   const scroller = useRef<HTMLDivElement>(null);
+  const phone = useRef<HTMLDivElement>(null);
 
   const current = stepById(turns[turns.length - 1]!.stepId);
   const beat = BEATS.find((b) => b.n === current.beat) ?? BEATS[0]!;
@@ -724,6 +804,24 @@ function Guide() {
     return () => clearTimeout(id);
   }, [flash]);
 
+  // After a move, bring what changed into view and let the highlight fade.
+  useEffect(() => {
+    if (!lit) return;
+    const shown = (sel: string) =>
+      Array.from(document.querySelectorAll<HTMLElement>(sel)).find(
+        (el) => el.offsetParent !== null,
+      );
+    const el =
+      lit.focus === "row"
+        ? shown(`[data-row="${lit.rows[0]}"]`)
+        : lit.focus === "other"
+          ? shown("[data-other-phone]")
+          : phone.current;
+    el?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    const id = setTimeout(() => setLit(null), 1200);
+    return () => clearTimeout(id);
+  }, [lit]);
+
   const openPage = () => {
     setTab("page");
     setFlash("page");
@@ -734,7 +832,7 @@ function Guide() {
   };
   const go = (to: string, via?: string) => {
     // Steps that happen on her page are not texts from her, so they leave no bubble.
-    const onPage = Boolean(stepById(to).page?.demo);
+    const onPage = Boolean(stepById(to).page?.demo ?? stepById(to).page?.show);
     setTurns((t) => [...t, onPage || via === undefined ? { stepId: to } : { stepId: to, via }]);
     setDraft(null);
     setChoice(0);
@@ -755,6 +853,39 @@ function Guide() {
     setDraft(null);
     setChoice(0);
     setEpoch((e) => e + 1);
+  };
+  /** Light up what a move changed: the new text, and any row of her list the step touched. */
+  const spot = (to?: string) => {
+    const s = to ? stepById(to) : undefined;
+    const patch = s?.page;
+    const onPage = Boolean(patch?.demo ?? patch?.show);
+    const rows = patch?.review
+      ? [...patch.review.more, ...FOLLOW_UP.items.map((it) => it.id)]
+      : patch
+        ? [
+            ...new Set([
+              ...(patch.demo ? ["a-stubs"] : []),
+              ...(patch.show ? [patch.show] : []),
+              ...Object.keys(patch.got ?? {}),
+              ...(patch.stuck ?? []),
+              ...Object.keys(patch.lines ?? {}),
+              ...(patch.expanded ? [patch.expanded] : []),
+            ]),
+          ]
+        : [];
+    if (!onPage) setTab("texts");
+    litCount.current += 1;
+    setLit({
+      n: litCount.current,
+      rows,
+      extra: !to,
+      focus: onPage ? "row" : s?.other ? "other" : "phone",
+    });
+  };
+  /** A scripted move, from the control that glows or from Next step. */
+  const move = (to: string, via?: string) => {
+    go(to, via);
+    spot(to);
   };
 
   const addOnPage = (id: string) => {
@@ -823,8 +954,11 @@ function Guide() {
     return text
       .replace(
         "{STATUS}",
-        `${receivedCount(then)} of ${TOTAL_DOCS} documents received. 10 weekdays left, due ${DUE_TEXT}.`,
+        then.review
+          ? `${GUIDE.agent} reviewed your first request on ${REVIEW_TEXT} and asked for ${FOLLOW_UP.items.length} more things. ${followDone(then)} of ${FOLLOW_UP.items.length} received. Due ${DUE2_TEXT}.`
+          : `${receivedCount(then)} of ${TOTAL_DOCS} documents received. 10 weekdays left, due ${DUE_TEXT}.`,
       )
+      .replace("{FOLLOW}", String(followDone(then)))
       .replace("{STUBS}", String(then.got["a-stubs"] ?? 0));
   };
 
@@ -838,8 +972,10 @@ function Guide() {
     ? picked && { text: picked.text, pick: () => setDraft(null) }
     : unpicked && { text: unpicked.text, pick: () => setChoice(choice === 0 ? 1 : 0) };
   const send = () => {
-    if (draft) sendDraft();
-    else if (picked) go(picked.to, picked.text);
+    if (draft) {
+      sendDraft();
+      spot();
+    } else if (picked) move(picked.to, picked.text);
   };
   // A move that is not a text from her: she opens her page, or the guide texts first.
   const next = current.next;
@@ -848,6 +984,47 @@ function Guide() {
     else openPage();
   };
   const atEnd = !picked && !next && !current.other?.reply && !draft;
+  const otherReply = current.other?.reply;
+  // Exactly one control moves the script forward at any moment. It glows, and Next step presses it.
+  const target: Target =
+    draft || picked
+      ? "send"
+      : otherReply
+        ? "other"
+        : next
+          ? current.page?.demo === "stub-wrong"
+            ? "retry"
+            : "next"
+          : "restart";
+  // On a small screen the glowing control can be on another tab; then the tab that leads to it glows.
+  const targetTab: Tab = target === "retry" ? "page" : "texts";
+  const advance = () => {
+    if (target === "send") send();
+    else if (otherReply) move(otherReply.to);
+    else if (next) move(next.to);
+    else {
+      restart();
+      spot("hello");
+    }
+  };
+  const lastExtra = extras.reduce((last, x, k) => (x.at === turns.length ? k : last), -1);
+  const stepButtons = (
+    <div className="ml-auto flex items-center gap-1">
+      <button
+        onClick={back}
+        disabled={turns.length === 1}
+        className="rounded-full px-2.5 py-1.5 font-display text-sm font-semibold text-muted-foreground underline-offset-4 hover:underline disabled:opacity-40 disabled:hover:no-underline"
+      >
+        Back
+      </button>
+      <button
+        onClick={advance}
+        className="whitespace-nowrap rounded-full border border-border bg-primary px-4 py-1.5 font-display text-sm font-semibold text-primary-foreground shadow-sm transition active:translate-y-0.5"
+      >
+        {target === "restart" ? "Start over" : "Next step"}
+      </button>
+    </div>
+  );
 
   return (
     <main className="min-h-screen px-4 pb-16">
@@ -876,27 +1053,35 @@ function Guide() {
         </header>
 
         {/* Small screens: one surface at a time. */}
-        <div
-          role="tablist"
-          className="mb-3 grid grid-cols-3 gap-1 rounded-full border border-border bg-card p-1 min-[920px]:hidden"
-        >
-          {(
-            [
-              ["texts", "Texts"],
-              ["page", "Her page"],
-              ["notes", "Notes"],
-            ] as [Tab, string][]
-          ).map(([k, label]) => (
-            <button
-              key={k}
-              role="tab"
-              aria-selected={tab === k}
-              onClick={() => setTab(k)}
-              className={`rounded-full px-2 py-1.5 font-display text-sm font-semibold ${tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
-            >
-              {label}
-            </button>
-          ))}
+        <div className="sticky top-0 z-20 -mx-4 mb-1 bg-background/95 px-4 py-2 backdrop-blur min-[1240px]:hidden">
+          <div
+            role="tablist"
+            className="mb-2 grid grid-cols-3 gap-1 rounded-full border border-border bg-card p-1 min-[920px]:hidden"
+          >
+            {(
+              [
+                ["texts", "Texts"],
+                ["page", "Her page"],
+                ["notes", "Notes"],
+              ] as [Tab, string][]
+            ).map(([k, label]) => (
+              <button
+                key={k}
+                role="tab"
+                aria-selected={tab === k}
+                onClick={() => setTab(k)}
+                className={`rounded-full px-2 py-1.5 font-display text-sm font-semibold ${tab === k ? "bg-primary text-primary-foreground" : "text-muted-foreground"} ${k === targetTab && tab !== k ? GLOW : ""}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-2 pl-1">
+            <span className="font-display text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              Beat {beat.n} of {BEATS.length}
+            </span>
+            {stepButtons}
+          </div>
         </div>
 
         <div className="grid items-start gap-6 min-[920px]:grid-cols-[minmax(0,380px)_minmax(0,1fr)] min-[1240px]:grid-cols-[minmax(0,380px)_minmax(0,400px)_minmax(0,1fr)]">
@@ -906,7 +1091,8 @@ function Guide() {
               Her texts
             </div>
             <div
-              className={`mx-auto flex h-[640px] max-h-[80vh] w-full max-w-[420px] flex-col overflow-hidden rounded-[2rem] border-2 bg-card shadow-sm transition ${flash === "texts" ? "border-agt ring-4 ring-agt/40" : "border-border"}`}
+              ref={phone}
+              className={`mx-auto flex h-[640px] max-h-[80vh] w-full max-w-[420px] scroll-mt-28 flex-col overflow-hidden rounded-[2rem] border-2 bg-card shadow-sm transition ${flash === "texts" ? "border-agt ring-4 ring-agt/40" : "border-border"}`}
             >
               <div className="border-b border-border/40 bg-secondary px-3 py-2 text-center leading-tight">
                 <div className="font-display text-sm font-bold">{GUIDE.agent}</div>
@@ -923,7 +1109,8 @@ function Guide() {
                   const s = stepById(t.stepId);
                   const last = i === turns.length - 1;
                   return (
-                    <div key={i} className={`space-y-2 ${last ? "animate-pop-in" : ""}`}>
+                    <div key={i} className={`relative space-y-2 ${last ? "animate-pop-in" : ""}`}>
+                      {lit && last && !lit.extra && <Spot n={lit.n} />}
                       {t.via && (
                         <div className="flex items-end justify-end gap-1.5">
                           <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground">
@@ -942,7 +1129,8 @@ function Guide() {
                       {extras
                         .filter((x) => x.at === i + 1)
                         .map((x, k) => (
-                          <div key={`x${k}`} className="space-y-2">
+                          <div key={`x${k}`} className="relative space-y-2">
+                            {lit?.extra && extras.indexOf(x) === lastExtra && <Spot n={lit.n} />}
                             {x.me && (
                               <div className="flex items-end justify-end gap-1.5">
                                 <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-primary px-3 py-2 text-sm text-primary-foreground">
@@ -966,8 +1154,8 @@ function Guide() {
                   <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
                     <span>That is the end of this path.</span>
                     <button
-                      onClick={restart}
-                      className="rounded-full border border-border bg-accent px-3 py-1.5 font-display text-sm font-semibold text-foreground shadow-sm"
+                      onClick={advance}
+                      className={`rounded-full border border-border bg-accent px-3 py-1.5 font-display text-sm font-semibold text-foreground shadow-sm ${GLOW}`}
                     >
                       Start over
                     </button>
@@ -975,14 +1163,14 @@ function Guide() {
                 ) : (
                   <div className="flex items-end gap-2">
                     <div
-                      className={`min-w-0 flex-1 break-words rounded-2xl border px-3 py-2 text-sm ${boxText ? "border-border bg-card" : "border-border/40 bg-background text-muted-foreground"}`}
+                      className={`min-w-0 flex-1 break-words rounded-2xl border px-3 py-2 text-sm ${boxText ? `bg-card ${BOX_GLOW}` : "border-border/40 bg-background text-muted-foreground"}`}
                     >
                       {boxText ?? "Text message"}
                     </div>
                     <button
                       onClick={send}
                       disabled={!boxText}
-                      className="whitespace-nowrap rounded-full border border-border bg-primary px-3 py-2 font-display text-sm font-semibold text-primary-foreground shadow-sm transition active:translate-y-0.5 disabled:opacity-30"
+                      className={`whitespace-nowrap rounded-full border border-border bg-primary px-3 py-2 font-display text-sm font-semibold text-primary-foreground shadow-sm transition active:translate-y-0.5 disabled:opacity-30 ${boxText ? GLOW : ""}`}
                     >
                       Send
                     </button>
@@ -1001,8 +1189,8 @@ function Guide() {
 
             {next && (
               <button
-                onClick={() => go(next.to)}
-                className="mx-auto mt-3 block w-full max-w-[420px] rounded-full border border-dashed border-border bg-accent px-3 py-2 font-display text-sm font-semibold shadow-sm transition active:translate-y-0.5"
+                onClick={() => move(next.to)}
+                className={`mx-auto mt-3 block w-full max-w-[420px] rounded-full border border-dashed border-border bg-accent px-3 py-2 font-display text-sm font-semibold shadow-sm transition active:translate-y-0.5 ${target === "next" ? GLOW : ""}`}
               >
                 {next.label}
               </button>
@@ -1014,7 +1202,12 @@ function Guide() {
             )}
             {current.other && (
               <div className="mt-5 min-[920px]:hidden">
-                <OtherPhone thread={current.other} onSend={(r) => go(r.to)} />
+                <OtherPhone
+                  thread={current.other}
+                  glow={target === "other"}
+                  lit={lit}
+                  onSend={(r) => move(r.to)}
+                />
               </div>
             )}
             <p className="mx-auto mt-3 max-w-[420px] text-center text-[11px] text-muted-foreground">
@@ -1046,7 +1239,12 @@ function Guide() {
           <div className={show("page")}>
             {current.other && (
               <div className="mb-6 hidden min-[920px]:block">
-                <OtherPhone thread={current.other} onSend={(r) => go(r.to)} />
+                <OtherPhone
+                  thread={current.other}
+                  glow={target === "other"}
+                  lit={lit}
+                  onSend={(r) => move(r.to)}
+                />
               </div>
             )}
             <div className="mb-2 hidden font-display text-xs font-bold uppercase tracking-widest text-muted-foreground min-[920px]:block">
@@ -1057,10 +1255,12 @@ function Guide() {
               page={page}
               demo={current.page?.demo}
               flash={flash === "page"}
+              glowRetry={target === "retry"}
+              lit={lit}
               onAdd={addOnPage}
               onStuck={stuckOnPage}
               onTextGuide={textGuide}
-              onDemoRetry={() => go("upload-right")}
+              onDemoRetry={() => move("upload-right")}
             />
             <p className="mt-2 text-xs text-muted-foreground">
               The page opens from the link in her texts, with a code sent to her phone. Documents
@@ -1073,38 +1273,40 @@ function Guide() {
           <aside
             className={`space-y-4 min-[920px]:col-span-2 min-[1240px]:col-span-1 ${show("notes")}`}
           >
-            <div
-              key={beat.n}
-              className="animate-pop-in rounded-xl border border-border bg-card p-5 shadow-sm"
-            >
-              <div className="font-display text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                What the guide is doing · beat {beat.n} of {BEATS.length}
+            <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <div className="font-display text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                  What the guide is doing · beat {beat.n} of {BEATS.length}
+                </div>
+                {stepButtons}
               </div>
-              <h2 className="mt-1 text-2xl font-bold">{beat.title}</h2>
-              <div className="mt-2 flex gap-1" aria-hidden>
-                {BEATS.map((b) => (
-                  <span
-                    key={b.n}
-                    className={`h-1.5 flex-1 rounded-full ${b.n === beat.n ? "bg-primary" : b.n < beat.n ? "bg-primary/35" : "bg-border/20"}`}
-                  />
-                ))}
+              <div key={beat.n} className="animate-pop-in">
+                <h2 className="mt-1 text-2xl font-bold">{beat.title}</h2>
+                <div className="mt-2 flex gap-1" aria-hidden>
+                  {BEATS.map((b) => (
+                    <span
+                      key={b.n}
+                      className={`h-1.5 flex-1 rounded-full ${b.n === beat.n ? "bg-primary" : b.n < beat.n ? "bg-primary/35" : "bg-border/20"}`}
+                    />
+                  ))}
+                </div>
+                <ul className="mt-4 space-y-3">
+                  {beat.notes.map((n) => (
+                    <li
+                      key={n.finding}
+                      className="rounded-xl border border-border bg-secondary/50 p-3 text-sm"
+                    >
+                      <p className="font-semibold">{n.finding}</p>
+                      {n.rule && (
+                        <p className="mt-2 flex items-start gap-2 text-xs text-muted-foreground">
+                          <City className="h-6 w-8 shrink-0" />
+                          <span>{n.rule}</span>
+                        </p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <ul className="mt-4 space-y-3">
-                {beat.notes.map((n) => (
-                  <li
-                    key={n.finding}
-                    className="rounded-xl border border-border bg-secondary/50 p-3 text-sm"
-                  >
-                    <p className="font-semibold">{n.finding}</p>
-                    {n.rule && (
-                      <p className="mt-2 flex items-start gap-2 text-xs text-muted-foreground">
-                        <City className="h-6 w-8 shrink-0" />
-                        <span>{n.rule}</span>
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
             </div>
 
             <div className="rounded-xl border border-dashed border-border bg-harm-soft p-5 text-sm">

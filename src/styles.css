@@ -182,3 +182,27 @@
 @utility animate-wiggle { animation: wiggle .5s ease-in-out infinite; }
 @utility animate-pop-in { animation: pop-in .35s ease-out both; }
 @utility walker { transition: left .9s cubic-bezier(.5,1.6,.4,1), opacity .4s; }
+
+/* Guide prototype: the one control that moves the script forward, and a brief highlight on what changed. */
+@keyframes glow-next {
+  0%, 100% { box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 75%, transparent), 0 0 0 3px color-mix(in oklab, var(--ring) 0%, transparent); }
+  50% { box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 75%, transparent), 0 0 0 9px color-mix(in oklab, var(--ring) 22%, transparent); }
+}
+.glow-next {
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--ring) 75%, transparent), 0 0 0 6px color-mix(in oklab, var(--ring) 18%, transparent);
+  animation: glow-next 1.8s ease-in-out infinite;
+}
+@keyframes spot { 0% { opacity: 0 } 15%, 55% { opacity: 1 } 100% { opacity: 0 } }
+.spot {
+  position: absolute;
+  inset: -4px;
+  border-radius: 0.75rem;
+  pointer-events: none;
+  background: color-mix(in oklab, var(--harm) 30%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--harm) 80%, transparent);
+  opacity: 0;
+  animation: spot 1.1s ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .glow-next { animation: none; }
+}
