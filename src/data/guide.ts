@@ -20,14 +20,13 @@ const day = (d: Date) =>
   d.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" });
 export const DUE_TEXT = day(GUIDE_DUE);
 
-/** Her own page. An invented link on a reserved example domain. No app, no password. */
+/** Her own page. An invented link on a reserved example domain. No app; it opens with a code texted to her phone. */
 export const LINK = "northside.example/p/0412";
 
 export type Msg =
   | { kind: "bot"; text: string; to?: string }
   | { kind: "other"; name: string; text: string }
   | { kind: "system"; text: string }
-  | { kind: "photo"; label: string }
   | { kind: "draft"; title: string; body: string };
 
 export type Chip = { label: string; to: string };
@@ -36,8 +35,15 @@ export type Chip = { label: string; to: string };
 export type PagePatch = {
   ready?: true;
   expanded?: string;
-  states?: Record<string, string>;
-  receipts?: [string, string][];
+  /** Documents received for an item at this step. */
+  got?: Record<string, number>;
+  /** Items the agent has been told she is stuck on. */
+  stuck?: string[];
+  /** A small dated line added under an item. */
+  lines?: Record<string, string>;
+  history?: [string, string][];
+  /** The pay stub exchange, shown on her page rather than in the thread. */
+  demo?: "stub-wrong" | "stub-right";
 };
 
 export type Step = {
@@ -69,7 +75,7 @@ export const BEATS: Beat[] = [
       },
       {
         finding:
-          "She can do all of it by text, or open her own page from the link. Both show the same record.",
+          "She answers by text. Documents are added on her own page, which is just her list and where it stands.",
       },
     ],
   },
@@ -123,7 +129,7 @@ export const BEATS: Beat[] = [
       },
       {
         finding:
-          "A text thread scrolls away. Replying LIST at any time brings back the link to her page and a one-line status.",
+          "A photo sent by text sits in the phone's message history. Documents go through the secure page.",
       },
     ],
   },
@@ -194,6 +200,10 @@ export const BEATS: Beat[] = [
         finding: "Applicants wait weeks without knowing where things stand.",
         rule: "Nothing in the Handbook limits how long the agent takes to review.",
       },
+      {
+        finding:
+          "A text thread scrolls away. Replying LIST at any time brings back the link to her page and a one-line status.",
+      },
     ],
   },
 ];
@@ -236,7 +246,7 @@ export const STEPS: Step[] = [
       },
       {
         kind: "bot",
-        text: `The agent needs documents from your household by ${DUE_TEXT}. That is ten weekdays from today. You can do all of it here by text, or on your own page: ${LINK} No app, no password. Both show the same record.`,
+        text: `The agent needs documents from your household by ${DUE_TEXT}. That is ten weekdays from today. You can answer my questions here by text. Documents go on your own page, which is just your list and where it stands: ${LINK} No app. It opens with a code texted to this phone.`,
       },
       {
         kind: "bot",
@@ -359,36 +369,30 @@ export const STEPS: Step[] = [
       },
       {
         kind: "bot",
-        text: "I cannot tell you whether you qualify. The agent decides that, and I do not calculate it. When you are ready, text me a photo of a pay stub.",
+        text: "I cannot tell you whether you qualify. The agent decides that, and I do not calculate it.",
+      },
+      {
+        kind: "bot",
+        text: `When you are ready to add a pay stub: please don't text me photos of documents. A text thread isn't a safe place for them. Add them on your page instead: ${LINK}`,
       },
     ],
-    chips: [{ label: "Send a photo", to: "upload-wrong" }],
+    chips: [{ label: "Open my page", to: "upload-wrong" }],
   },
   {
     id: "upload-wrong",
     beat: 5,
-    say: [
-      { kind: "photo", label: "Photo 1" },
-      {
-        kind: "bot",
-        text: "I can read this, but it looks like a bank statement, not a pay stub. A pay stub comes from your employer and shows a pay period, your hours or salary, and deductions.",
-      },
-      {
-        kind: "bot",
-        text: "If you are sure it is right, reply SEND and the agent will look at it.",
-      },
-    ],
-    chips: [{ label: "Send another photo", to: "upload-right" }],
-    others: ["SEND"],
+    say: [{ kind: "system", text: "On her page, she adds a photo for her pay stubs." }],
+    chips: [{ label: "Add another photo on my page", to: "upload-right" }],
+    page: { demo: "stub-wrong" },
   },
   {
     id: "upload-right",
     beat: 5,
     say: [
-      { kind: "photo", label: "Photo 2" },
+      { kind: "system", text: "On her page, the second photo is read as a pay stub." },
       {
         kind: "bot",
-        text: `Got it. Pay stub for Oct 12 to Oct 25. That is 1 of 2. Received Thu, Nov 5 at 7:42 PM. ${GUIDE.agent} can see it too, and it is on your page. Reply LIST any time to see where things stand.`,
+        text: `Got your pay stub for Oct 12 to 25. That is {STUBS} of 2. ${GUIDE.agent} can see it too. Reply LIST any time to see where things stand.`,
       },
     ],
     chips: [
@@ -396,8 +400,10 @@ export const STEPS: Step[] = [
       { label: "Continue", to: "bonus" },
     ],
     page: {
-      states: { "a-stubs": "1 received by the agent · needs another" },
-      receipts: [["7:42 PM", "Pay stub for Oct 12 to Oct 25 received by the agent"]],
+      demo: "stub-right",
+      got: { "a-stubs": 1 },
+      lines: { "a-stubs": "Pay stub for Oct 12 to 25 received Nov 5, 7:42 pm" },
+      history: [["7:42 PM", "Pay stub for Oct 12 to Oct 25 received by the agent"]],
     },
   },
   {
@@ -406,7 +412,7 @@ export const STEPS: Step[] = [
     say: [
       {
         kind: "bot",
-        text: `1 of 11 documents received. 10 weekdays left. Your page: ${LINK}`,
+        text: `{STATUS} Your page: ${LINK}`,
       },
     ],
     chips: [{ label: "Continue", to: "bonus" }],
@@ -433,7 +439,10 @@ export const STEPS: Step[] = [
       },
     ],
     chips: [{ label: "Next: my mother's pay stubs", to: "stuck" }],
-    page: { receipts: [["7:43 PM", "Note added to the stub: one-time bonus"]] },
+    page: {
+      lines: { "a-stubs": "Note added Nov 5, 7:43 pm: one-time bonus" },
+      history: [["7:43 PM", "Note added to the stub: one-time bonus"]],
+    },
   },
   {
     id: "stuck",
@@ -467,13 +476,14 @@ export const STEPS: Step[] = [
       { kind: "system", text: `${GUIDE.agent} notified: waiting on employer` },
       {
         kind: "bot",
-        text: `Third, send what you have. Sending part of the set is allowed. If something is still missing on ${DUE_TEXT}, the agent has to ask you again and give you at least five more weekdays. You are not rejected outright (Handbook §4-5.D.2).`,
+        text: `Third, add what you have on your page. Sending part of the set is allowed. If something is still missing on ${DUE_TEXT}, the agent has to ask you again and give you at least five more weekdays. You are not rejected outright (Handbook §4-5.D.2).`,
       },
     ],
     chips: [{ label: "Next: proof of address", to: "lease" }],
     page: {
-      states: { "m-stubs": "Waiting on employer" },
-      receipts: [["7:46 PM", "Agent told: waiting on employer for her mother's pay stubs"]],
+      stuck: ["m-stubs"],
+      lines: { "m-stubs": "Agent told Nov 5, 7:46 pm: waiting on her employer" },
+      history: [["7:46 PM", "Agent told: waiting on employer for her mother's pay stubs"]],
     },
   },
   {
@@ -496,8 +506,8 @@ export const STEPS: Step[] = [
     ],
     chips: [{ label: "Send it to my relative", to: "proxy" }],
     page: {
-      states: { "h-address": "Sent to your relative to sign" },
-      receipts: [["7:48 PM", "Letter sent to your relative to sign"]],
+      lines: { "h-address": "Letter sent to your relative to sign, Nov 5, 7:48 pm" },
+      history: [["7:48 PM", "Letter sent to your relative to sign"]],
     },
   },
   {
@@ -506,7 +516,7 @@ export const STEPS: Step[] = [
     say: [
       {
         kind: "bot",
-        text: "You are sending documents for your mother as well. I need her to say that is okay, so I have texted her in Spanish, the language she chose.",
+        text: "You are adding documents for your mother as well. I need her to say that is okay, so I have texted her in Spanish, the language she chose.",
       },
       {
         kind: "bot",
@@ -517,16 +527,16 @@ export const STEPS: Step[] = [
       {
         kind: "bot",
         to: "To her mother",
-        text: `Gracias. Lo anoto como un sí. Usted puede ver todo lo que Amina envíe en su página: ${LINK}`,
+        text: `Gracias. Lo anoto como un sí. Usted puede ver todo lo que Amina añada en su página: ${LINK}`,
       },
       {
         kind: "bot",
-        text: "Confirmed. Anything you send for your mother is recorded as sent by you, and she can see it.",
+        text: "Confirmed. Anything you add for your mother is recorded as added by you, and she can see it.",
       },
     ],
     chips: [],
     typed: { text: "does money my aunt sends me count as income?", to: "question" },
-    page: { receipts: [["7:49 PM", "Her mother confirmed Amina may act for her"]] },
+    page: { history: [["7:49 PM", "Her mother confirmed Amina may act for her"]] },
   },
   {
     id: "question",
@@ -553,7 +563,7 @@ export const STEPS: Step[] = [
       { kind: "bot", text: "I cannot tell you whether you qualify. The agent decides that." },
     ],
     chips: [{ label: "LIST", to: "status" }],
-    page: { receipts: [["7:52 PM", "Note recorded: gift from aunt, one time"]] },
+    page: { history: [["7:52 PM", "Note recorded: gift from aunt, one time"]] },
   },
   {
     id: "status",
@@ -561,37 +571,163 @@ export const STEPS: Step[] = [
     say: [
       {
         kind: "bot",
-        text: `1 of 11 documents received. 2 items are waiting on other people. 10 weekdays left, due ${DUE_TEXT}. Your page has the full list and everything you have sent: ${LINK}`,
+        text: `{STATUS} 2 items are waiting on other people. Your page has the full list and where each one stands: ${LINK}`,
       },
       {
         kind: "bot",
-        text: `What happens next: ${GUIDE.agent} reviews what you send. They may ask for more. Anything new comes here and to your page, with its own date.`,
+        text: `What happens next: ${GUIDE.agent} reviews what you add. They may ask for more. Anything new comes here and to your page, with its own date.`,
       },
     ],
     chips: [],
   },
 ];
 
-export type ListItem = { id: string; name: string; note?: string };
+export type Counts = { rows: [string, string][]; cite: string };
+
+export type ListItem = {
+  id: string;
+  name: string;
+  /** How many documents this item needs. */
+  count: number;
+  note?: string;
+  counts: Counts;
+  /** What the rules accept in its place. */
+  instead: string;
+  /** The text she can send the guide if she is stuck on it. */
+  stuckDraft: string;
+  /** How to photograph it. */
+  how: string[];
+};
 export type ListGroup = { who: string; items: ListItem[] };
 
-export const NOT_STARTED = "Not started";
+const ID_COUNTS: Counts = {
+  rows: [
+    [
+      "What counts",
+      "Any one of: a driver's license, a state non-driver ID, a passport, a military ID, or an NYC municipal ID (IDNYC).",
+    ],
+    [
+      "Not sure",
+      "The City's list does not say whether a passport from another country counts. Ask the guide and it will check with the agent.",
+    ],
+  ],
+  cite: "The City's document list (Attachment H-1C)",
+};
+
+const SSN_COUNTS: Counts = {
+  rows: [
+    [
+      "What counts",
+      "A Social Security card, or an IRS letter showing a tax ID (ITIN). Either is accepted.",
+    ],
+  ],
+  cite: "The City's document request",
+};
+
+const CARD_HOW = [
+  "Put the whole card in the frame.",
+  "No glare: tilt it away from the light.",
+  "The front. Add the back too if it has one.",
+];
+const PAGE_HOW = [
+  "Put the whole page in the frame, flat.",
+  "No glare or shadow across the text.",
+  "One page per photo.",
+];
 
 export const LIST: ListGroup[] = [
   {
     who: "Amina",
     items: [
-      { id: "a-id", name: "Photo ID" },
-      { id: "a-ssn", name: "Social Security card or tax ID" },
-      { id: "a-stubs", name: "2 pay stubs", note: "Paid every two weeks" },
+      {
+        id: "a-id",
+        name: "Photo ID",
+        count: 1,
+        counts: ID_COUNTS,
+        instead:
+          "Any other photo ID on the City's list, such as a state non-driver ID, a passport, a military ID or an IDNYC card.",
+        stuckDraft: "I can't get my photo ID",
+        how: CARD_HOW,
+      },
+      {
+        id: "a-ssn",
+        name: "Social Security card or tax ID",
+        count: 1,
+        counts: SSN_COUNTS,
+        instead:
+          "An IRS letter showing a tax ID (ITIN) in place of a Social Security card, or the other way round.",
+        stuckDraft: "I can't find my Social Security card",
+        how: CARD_HOW,
+      },
+      {
+        id: "a-stubs",
+        name: "2 pay stubs",
+        count: 2,
+        note: "Paid every two weeks",
+        counts: {
+          rows: [
+            [
+              "What counts",
+              "A pay stub from your employer that shows your name, the pay period and your pay before deductions.",
+            ],
+            ["How many", "2, because you are paid every two weeks. They cover one month."],
+            ["How recent", "Your most recent ones, in a row, with no gap between them."],
+            [
+              "Where to get them",
+              "Your employer's payroll site or app, or ask payroll. Usually the same day.",
+            ],
+          ],
+          cite: "Handbook §5-4.C; the City's document list (Attachment H-1C)",
+        },
+        instead: "A letter from your employer confirming your job, pay rate and usual hours.",
+        stuckDraft: "I can't get my pay stubs",
+        how: PAGE_HOW,
+      },
     ],
   },
   {
     who: "Her mother",
     items: [
-      { id: "m-id", name: "Photo ID" },
-      { id: "m-ssn", name: "Social Security card or tax ID" },
-      { id: "m-stubs", name: "4 pay stubs", note: "Paid weekly" },
+      {
+        id: "m-id",
+        name: "Photo ID",
+        count: 1,
+        counts: ID_COUNTS,
+        instead:
+          "Any other photo ID on the City's list, such as a state non-driver ID, a passport, a military ID or an IDNYC card.",
+        stuckDraft: "I can't get my mother's photo ID",
+        how: CARD_HOW,
+      },
+      {
+        id: "m-ssn",
+        name: "Social Security card or tax ID",
+        count: 1,
+        counts: SSN_COUNTS,
+        instead:
+          "An IRS letter showing a tax ID (ITIN) in place of a Social Security card, or the other way round.",
+        stuckDraft: "I can't find my mother's Social Security card",
+        how: CARD_HOW,
+      },
+      {
+        id: "m-stubs",
+        name: "4 pay stubs",
+        count: 4,
+        note: "Paid weekly",
+        counts: {
+          rows: [
+            [
+              "What counts",
+              "A pay stub from her employer that shows her name, the pay period and her pay before deductions.",
+            ],
+            ["How many", "4, because she is paid weekly. They cover one month."],
+            ["How recent", "Her most recent ones, in a row, with no gap between them."],
+          ],
+          cite: "Handbook §5-4.C; the City's document list (Attachment H-1C)",
+        },
+        instead: "A letter from her employer confirming her job, pay rate and usual weekly hours.",
+        stuckDraft: "I can't get my mother's pay stubs",
+        how: PAGE_HOW,
+      },
     ],
   },
   {
@@ -600,26 +736,36 @@ export const LIST: ListGroup[] = [
       {
         id: "h-address",
         name: "Proof of where you live now",
+        count: 1,
         note: "No lease: a signed letter from the relative you live with",
+        counts: {
+          rows: [
+            [
+              "What counts",
+              "A lease, a utility bill, or a signed letter from the person you live with.",
+            ],
+            ["Good to know", "No notary needed since April 2025."],
+          ],
+          cite: "The City's document list (Attachment H-1C)",
+        },
+        instead: "A signed letter from the relative you live with. No notary is needed.",
+        stuckDraft: "I can't get proof of where I live",
+        how: PAGE_HOW,
       },
     ],
   },
 ];
 
-/** What counts for pay stubs: the one item expanded on her page in this sketch. */
-export const WHAT_COUNTS: { item: string; rows: [string, string][]; cite: string } = {
-  item: "a-stubs",
-  rows: [
-    [
-      "What counts",
-      "A pay stub from your employer that shows your name, the pay period and your pay before deductions.",
-    ],
-    ["How many", "2, because you are paid every two weeks. They cover one month."],
-    ["How recent", "Your most recent ones, in a row, with no gap between them."],
-    [
-      "Where to get them",
-      "Your employer's payroll site or app, or ask payroll. Usually the same day.",
-    ],
-  ],
-  cite: "Handbook §5-4.C; the City's document list (Attachment H-1C)",
+export const TOTAL_DOCS = LIST.reduce((n, g) => n + g.items.reduce((m, it) => m + it.count, 0), 0);
+export const ALL_ITEMS = LIST.flatMap((g) => g.items);
+
+/** What the guide says it sees when a photo is added on her page. */
+export const SEEN: Record<string, string> = {
+  "a-id": "a New York State driver's license",
+  "a-ssn": "a Social Security card",
+  "a-stubs": "a pay stub",
+  "m-id": "a New York State non-driver ID",
+  "m-ssn": "a Social Security card",
+  "m-stubs": "a pay stub",
+  "h-address": "a signed letter from the person you live with",
 };
